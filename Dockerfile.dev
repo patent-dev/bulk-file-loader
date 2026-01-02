@@ -1,0 +1,16 @@
+FROM golang:1.25-alpine
+
+RUN apk add --no-cache git gcc musl-dev
+
+# Install Air for hot reload
+RUN go install github.com/air-verse/air@latest
+
+# Install oapi-codegen for API generation
+RUN go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
+
+WORKDIR /app
+
+# Note: go mod download is done at runtime when volumes are mounted
+# This allows the replace directives for local client libraries to work
+
+CMD ["sh", "-c", "sed -i 's|../client-libraries|/client-libraries|g' go.mod && go mod download && air -c .air.toml"]

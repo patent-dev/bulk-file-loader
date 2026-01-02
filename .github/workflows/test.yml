@@ -1,0 +1,65 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install oapi-codegen
+        run: go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.5.1
+
+      - name: Generate API code
+        run: oapi-codegen -config api/oapi-codegen.yaml api/openapi.yaml
+
+      - name: Build frontend
+        run: |
+          cd web/ui
+          npm ci
+          npm run build
+
+      - name: Run tests
+        run: go test -v ./...
+
+      - name: Run go vet
+        run: go vet ./...
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: web/ui/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: web/ui
+
+      - name: Run lint
+        run: npm run lint
+        working-directory: web/ui
+
+      - name: Build
+        run: npm run build
+        working-directory: web/ui

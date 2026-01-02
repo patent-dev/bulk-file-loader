@@ -1,0 +1,38 @@
+# Binaries
+bulk-file-loader
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test binary
+*.test
+
+# Output
+tmp/
+data/
+*.db
+
+# Dependencies
+vendor/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Frontend
+web/ui/node_modules/
+web/ui/dist/
+
+# Generated
+api/generated/
+
+# Environment
+.env
+.env.local

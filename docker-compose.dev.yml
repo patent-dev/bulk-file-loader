@@ -1,0 +1,54 @@
+networks:
+  default:
+    name: ${DOCKER_NETWORK:-reverse-proxy}
+    external: true
+
+services:
+  bulk-loader:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: bulk-loader-dev
+    volumes:
+      # Hot reload for Go (using air)
+      - .:/app
+      # Mount client libraries for local development
+      - ${CLIENT_LIBS_PATH:-../client-libraries}:/client-libraries:ro
+      # Persist data between rebuilds
+      - ./data:/app/data
+      # Exclude build artifacts
+      - /app/tmp
+      - /app/web/ui/node_modules
+    environment:
+      - BULK_LOADER_DATA_DIR=/app/data
+      - BULK_LOADER_PORT=8080
+      - BULK_LOADER_DEV_MODE=true
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.bulk-api.rule=Host(`${DEV_HOST:-localhost}`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.bulk-api.entrypoints=${TRAEFIK_ENTRYPOINT:-websecure}"
+      - "traefik.http.routers.bulk-api.priority=100"
+      - "traefik.docker.network=${DOCKER_NETWORK:-reverse-proxy}"
+      - "traefik.http.services.bulk-api.loadbalancer.server.port=8080"
+
+  # Frontend dev server with hot module replacement
+  bulk-loader-ui:
+    image: node:20-alpine
+    container_name: bulk-loader-ui-dev
+    working_dir: /app
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 5173"
+    volumes:
+      - ./web/ui:/app
+      - bulk-loader-ui-node-modules:/app/node_modules
+    environment:
+      - VITE_API_URL=${VITE_API_URL:-http://localhost:8080}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=${DOCKER_NETWORK:-reverse-proxy}"
+      - "traefik.http.routers.bulk-ui.rule=Host(`${DEV_HOST:-localhost}`)"
+      - "traefik.http.routers.bulk-ui.entrypoints=${TRAEFIK_ENTRYPOINT:-websecure}"
+      - "traefik.http.routers.bulk-ui.priority=1"
+      - "traefik.http.services.bulk-ui.loadbalancer.server.port=5173"
+
+volumes:
+  bulk-loader-ui-node-modules:

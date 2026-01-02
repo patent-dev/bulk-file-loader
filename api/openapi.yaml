@@ -1,0 +1,1141 @@
+openapi: 3.0.3
+info:
+  title: Bulk File Loader API
+  description: API for downloading bulk patent data from various patent office APIs
+  version: 1.0.0
+  license:
+    name: MIT
+
+servers:
+  - url: /api
+
+tags:
+  - name: auth
+    description: Authentication operations
+  - name: sources
+    description: Patent office API sources
+  - name: products
+    description: Data products
+  - name: files
+    description: Downloadable files
+  - name: downloads
+    description: Download operations and history
+  - name: schedule
+    description: Scheduling configuration
+  - name: hooks
+    description: Webhook configuration
+  - name: system
+    description: System operations
+
+paths:
+  /auth/status:
+    get:
+      tags: [auth]
+      summary: Get authentication status
+      operationId: getAuthStatus
+      responses:
+        '200':
+          description: Authentication status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthStatus'
+
+  /auth/setup:
+    post:
+      tags: [auth]
+      summary: Initial passphrase setup (first run only)
+      operationId: setupAuth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetupRequest'
+      responses:
+        '200':
+          description: Setup successful
+        '400':
+          description: Already configured
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/login:
+    post:
+      tags: [auth]
+      summary: Login with passphrase
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+        '401':
+          description: Invalid passphrase
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/logout:
+    post:
+      tags: [auth]
+      summary: Logout
+      operationId: logout
+      security:
+        - cookieAuth: []
+        - apiKeyAuth: []
+      responses:
+        '200':
+          description: Logout successful
+
+  /sources:
+    get:
+      tags: [sources]
+      summary: List available sources
+      operationId: listSources
+      security:
+        - cookieAuth: []
+        - apiKeyAuth: []
+      responses:
+        '200':
+          description: List of sources
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Source'
+
+  /sources/{id}:
+    get:
+      tags: [sources]
+      summary: Get source details
+      operationId: getSource
+      security:
+        - cookieAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Source details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Source'
+        '404':
+          description: Source not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    put:
+      tags: [sources]
+      summary: Update source configuration
+      operationId: updateSource
+      security:
+        - cookieAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSourceRequest'
+      responses:
+        '200':
+          description: Source updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Source'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /sources/{id}/test:
+    post:
+      tags: [sources]
+      summary: Test source credentials
+      operationId: testSourceCredentials
+      security:
+        - cookieAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TestCredentialsRequest'
+      responses:
+        '200':
+          description: Credentials valid
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /products:
+    get:
+      tags: [products]
+      summary: List all products
+      operationId: listProducts
+      security:
+        - cookieAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: sourceId
+          in: query
+          schema:
+            type: string
+          description: Filter by source ID
+      responses:
+        '200':
+          description: List of products
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Product'
+
+  /products/{id}:
+    get:
+      tags: [products]
+      summary: Get product details
+      operationId: getProduct
+      security:
+        - cookieAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Product details with deliveries
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductWithDeliveries'
+        '404':
+          description: Product not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /products/{id}/sync:
+    post:
+      tags: [products]
+      summary: Force sync product metadata
+      operationId: syncProduct
+      security:
+        - cookieAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '202':
+          description: Sync started
+        '404':
+          description: Product not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /files:
+    get:
+      tags: [files]
+      summary: List files
+      operationId: listFiles
+      security:
+        - cookieAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: sourceId
+          in: query
+          schema:
+            type: string
+        - name: productId
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [available, downloading, downloaded, failed, skipped, deleted]
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            maximum: 200
+      responses:
+        '200':
+          description: List of files
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileListResponse'
+
+  /files/{id}:
+    get:
+      tags: [files]
+      summary: Get file details
+      operationId: getFile
+      security:
+        - cookieAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: File details with download history
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileWithHistory'
+        '404':
+          description: File not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      tags: [files]
+      summary: Delete downloaded file from disk
+      operationId: deleteFile
+      security:
+        - cookieAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: File deleted
+        '404':
+          description: File not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /files/{id}/download:
+    post:
+      tags: [files]
+      summary: Trigger file download
+      operationId: downloadFile
+      security:
+        - cookieAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '202':
+          description: Download started
+        '404':
+          description: File not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Download already in progress
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /files/{id}/cancel:
+    post:
+      tags: [files]
+      summary: Cancel file download
+      operationId: cancelDownload
+      security:
+        - cookieAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Download cancelled
+        '404':
+          description: File or download not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /files/{id}/skip:
+    put:
+      tags: [files]
+      summary: Mark file as skipped
+      operationId: skipFile
+      security:
+        - cookieAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: File marked as skipped
+        '404':
+          description: File not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      tags: [files]
+      summary: Unmark file skip
+      operationId: unskipFile
+      security:
+        - cookieAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: File unskipped
+        '404':
+          description: File not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /downloads:
+    get:
+      tags: [downloads]
+      summary: List download entries
+      operationId: listDownloads
+      security:
+        - cookieAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, downloading, completed, failed, cancelled]
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: List of download entries
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DownloadListResponse'
+
+  /downloads/active:
+    get:
+      tags: [downloads]
+      summary: Stream active download progress (SSE)
+      operationId: streamActiveDownloads
+      security:
+        - cookieAuth: []
+        - apiKeyAuth: []
+      responses:
+        '200':
+          description: SSE stream of download progress
+          content:
+            text/event-stream:
+              schema:
+                type: string
+
+  /schedule:
+    get:
+      tags: [schedule]
+      summary: Get schedule configuration
+      operationId: getSchedule
+      security:
+        - cookieAuth: []
+        - apiKeyAuth: []
+      responses:
+        '200':
+          description: Schedule configuration per product
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProductSchedule'
+
+  /schedule/{productId}:
+    put:
+      tags: [schedule]
+      summary: Update product schedule
+      operationId: updateProductSchedule
+      security:
+        - cookieAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: productId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateScheduleRequest'
+      responses:
+        '200':
+          description: Schedule updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductSchedule'
+        '404':
+          description: Product not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /hooks:
+    get:
+      tags: [hooks]
+      summary: List webhooks
+      operationId: listWebhooks
+      security:
+        - cookieAuth: []
+        - apiKeyAuth: []
+      responses:
+        '200':
+          description: List of webhooks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Webhook'
+
+    post:
+      tags: [hooks]
+      summary: Create webhook
+      operationId: createWebhook
+      security:
+        - cookieAuth: []
+        - apiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWebhookRequest'
+      responses:
+        '201':
+          description: Webhook created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Webhook'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /hooks/{id}:
+    put:
+      tags: [hooks]
+      summary: Update webhook
+      operationId: updateWebhook
+      security:
+        - cookieAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateWebhookRequest'
+      responses:
+        '200':
+          description: Webhook updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Webhook'
+        '404':
+          description: Webhook not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      tags: [hooks]
+      summary: Delete webhook
+      operationId: deleteWebhook
+      security:
+        - cookieAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Webhook deleted
+        '404':
+          description: Webhook not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /health:
+    get:
+      tags: [system]
+      summary: Health check
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Service healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /stats:
+    get:
+      tags: [system]
+      summary: Get dashboard statistics
+      operationId: getStats
+      security:
+        - cookieAuth: []
+        - apiKeyAuth: []
+      responses:
+        '200':
+          description: Dashboard statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatsResponse'
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: bulk_loader_session
+    apiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+
+  schemas:
+    Error:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+        code:
+          type: string
+
+    AuthStatus:
+      type: object
+      required:
+        - configured
+        - authenticated
+      properties:
+        configured:
+          type: boolean
+          description: Whether passphrase has been set
+        authenticated:
+          type: boolean
+          description: Whether current session is authenticated
+
+    SetupRequest:
+      type: object
+      required:
+        - passphrase
+      properties:
+        passphrase:
+          type: string
+          minLength: 8
+
+    LoginRequest:
+      type: object
+      required:
+        - passphrase
+      properties:
+        passphrase:
+          type: string
+
+    CredentialField:
+      type: object
+      required:
+        - key
+        - label
+        - type
+        - required
+      properties:
+        key:
+          type: string
+        label:
+          type: string
+        type:
+          type: string
+          enum: [text, password]
+        required:
+          type: boolean
+        helpText:
+          type: string
+
+    Source:
+      type: object
+      required:
+        - id
+        - name
+        - enabled
+        - hasCredentials
+        - credentialFields
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        enabled:
+          type: boolean
+        hasCredentials:
+          type: boolean
+        lastSyncAt:
+          type: string
+          format: date-time
+        credentialFields:
+          type: array
+          items:
+            $ref: '#/components/schemas/CredentialField'
+
+    UpdateSourceRequest:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+        credentials:
+          type: object
+          additionalProperties:
+            type: string
+
+    TestCredentialsRequest:
+      type: object
+      required:
+        - credentials
+      properties:
+        credentials:
+          type: object
+          additionalProperties:
+            type: string
+
+    Product:
+      type: object
+      required:
+        - id
+        - sourceId
+        - name
+        - autoDownload
+      properties:
+        id:
+          type: string
+        sourceId:
+          type: string
+        externalId:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        autoDownload:
+          type: boolean
+        checkWindowStart:
+          type: string
+        lastCheckedAt:
+          type: string
+          format: date-time
+        totalFiles:
+          type: integer
+        downloadedFiles:
+          type: integer
+        failedFiles:
+          type: integer
+
+    ProductWithDeliveries:
+      allOf:
+        - $ref: '#/components/schemas/Product'
+        - type: object
+          properties:
+            deliveries:
+              type: array
+              items:
+                $ref: '#/components/schemas/Delivery'
+
+    Delivery:
+      type: object
+      required:
+        - id
+        - productId
+        - name
+      properties:
+        id:
+          type: string
+        productId:
+          type: string
+        externalId:
+          type: string
+        name:
+          type: string
+        publishedAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        files:
+          type: array
+          items:
+            $ref: '#/components/schemas/File'
+
+    File:
+      type: object
+      required:
+        - id
+        - fileName
+        - status
+      properties:
+        id:
+          type: string
+        deliveryId:
+          type: string
+        productId:
+          type: string
+        sourceId:
+          type: string
+        fileName:
+          type: string
+        fileSize:
+          type: integer
+          format: int64
+        expectedChecksum:
+          type: string
+        releasedAt:
+          type: string
+          format: date-time
+        skipped:
+          type: boolean
+        status:
+          type: string
+          enum: [available, downloading, downloaded, failed, skipped, deleted, cancelled]
+        localPath:
+          type: string
+        errorMessage:
+          type: string
+
+    FileWithHistory:
+      allOf:
+        - $ref: '#/components/schemas/File'
+        - type: object
+          properties:
+            downloadHistory:
+              type: array
+              items:
+                $ref: '#/components/schemas/DownloadEntry'
+
+    FileListResponse:
+      type: object
+      required:
+        - files
+        - total
+      properties:
+        files:
+          type: array
+          items:
+            $ref: '#/components/schemas/File'
+        total:
+          type: integer
+
+    DownloadEntry:
+      type: object
+      required:
+        - id
+        - fileId
+        - status
+      properties:
+        id:
+          type: integer
+        fileId:
+          type: string
+        status:
+          type: string
+          enum: [pending, downloading, completed, failed, cancelled]
+        progress:
+          type: integer
+          format: int64
+        totalBytes:
+          type: integer
+          format: int64
+        localPath:
+          type: string
+        localChecksum:
+          type: string
+        errorMessage:
+          type: string
+        startedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+
+    DownloadListResponse:
+      type: object
+      required:
+        - downloads
+        - total
+      properties:
+        downloads:
+          type: array
+          items:
+            $ref: '#/components/schemas/DownloadEntry'
+        total:
+          type: integer
+
+    DownloadProgress:
+      type: object
+      required:
+        - fileId
+        - fileName
+        - bytesWritten
+        - totalBytes
+      properties:
+        fileId:
+          type: string
+        fileName:
+          type: string
+        bytesWritten:
+          type: integer
+          format: int64
+        totalBytes:
+          type: integer
+          format: int64
+        speed:
+          type: number
+          format: double
+        startedAt:
+          type: string
+          format: date-time
+
+    ProductSchedule:
+      type: object
+      required:
+        - productId
+        - productName
+        - autoDownload
+      properties:
+        productId:
+          type: string
+        productName:
+          type: string
+        autoDownload:
+          type: boolean
+        checkWindowStart:
+          type: string
+        checkWindowEnd:
+          type: string
+        nextRun:
+          type: string
+          format: date-time
+
+    UpdateScheduleRequest:
+      type: object
+      properties:
+        autoDownload:
+          type: boolean
+        checkWindowStart:
+          type: string
+        checkWindowEnd:
+          type: string
+
+    Webhook:
+      type: object
+      required:
+        - id
+        - name
+        - url
+        - events
+        - enabled
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        url:
+          type: string
+          format: uri
+        events:
+          type: array
+          items:
+            type: string
+        enabled:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    CreateWebhookRequest:
+      type: object
+      required:
+        - name
+        - url
+        - events
+      properties:
+        name:
+          type: string
+        url:
+          type: string
+          format: uri
+        events:
+          type: array
+          items:
+            type: string
+
+    UpdateWebhookRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        url:
+          type: string
+          format: uri
+        events:
+          type: array
+          items:
+            type: string
+        enabled:
+          type: boolean
+
+    HealthResponse:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+        version:
+          type: string
+        uptime:
+          type: string
+
+    StatsResponse:
+      type: object
+      properties:
+        totalFiles:
+          type: integer
+        downloadedFiles:
+          type: integer
+        pendingFiles:
+          type: integer
+        totalSize:
+          type: integer
+          format: int64
+        downloadedSize:
+          type: integer
+          format: int64
+        activeDownloads:
+          type: integer
+        enabledSources:
+          type: integer
