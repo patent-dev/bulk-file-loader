@@ -38,10 +38,10 @@ Environment variables:
 
 Part of the [patent.dev](https://patent.dev) open-source patent data ecosystem:
 
-- [epo-ops](https://github.com/patent-dev/epo-ops) — EPO Open Patent Services client (search, biblio, legal status, family, images)
-- [epo-bdds](https://github.com/patent-dev/epo-bdds) — EPO Bulk Data Distribution Service client (used by this project)
-- [uspto-odp](https://github.com/patent-dev/uspto-odp) — USPTO Open Data Portal client (used by this project)
-- [dpma-connect-plus](https://github.com/patent-dev/dpma-connect-plus) — DPMA Connect Plus client (patents, designs, trademarks)
+- [uspto-odp](https://github.com/patent-dev/uspto-odp) - USPTO Open Data Portal client (search, PTAB, XML full text)
+- [epo-ops](https://github.com/patent-dev/epo-ops) - EPO Open Patent Services client (search, biblio, legal status, family, images)
+- [epo-bdds](https://github.com/patent-dev/epo-bdds) - EPO Bulk Data Distribution Service client
+- [dpma-connect-plus](https://github.com/patent-dev/dpma-connect-plus) - DPMA Connect Plus client (patents, designs, trademarks)
 
 ## License
 
