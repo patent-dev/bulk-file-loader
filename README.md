@@ -36,10 +36,12 @@ Environment variables:
 
 ## Related Projects
 
-This project uses the following patent office client libraries:
+Part of the [patent.dev](https://patent.dev) open-source patent data ecosystem:
 
-- [epo-bdds](https://github.com/patent-dev/epo-bdds) - EPO Bulk Data Distribution Service client
-- [uspto-odp](https://github.com/patent-dev/uspto-odp) - USPTO Open Data Portal client
+- [epo-ops](https://github.com/patent-dev/epo-ops) — EPO Open Patent Services client (search, biblio, legal status, family, images)
+- [epo-bdds](https://github.com/patent-dev/epo-bdds) — EPO Bulk Data Distribution Service client (used by this project)
+- [uspto-odp](https://github.com/patent-dev/uspto-odp) — USPTO Open Data Portal client (used by this project)
+- [dpma-connect-plus](https://github.com/patent-dev/dpma-connect-plus) — DPMA Connect Plus client (patents, designs, trademarks)
 
 ## License
 
