@@ -20,8 +20,9 @@ const (
 
 // Adapter implements the sources.Adapter interface for USPTO ODP
 type Adapter struct {
-	client      *odp.Client
-	credentials map[string]string
+	client          *odp.Client
+	credentials     map[string]string
+	downloadTimeout int
 }
 
 // New creates a new USPTO ODP adapter
@@ -52,6 +53,12 @@ func (a *Adapter) CredentialFields() []sources.CredentialField {
 			HelpText: "Your USPTO ODP API key from https://data.uspto.gov/apis/getting-started",
 		},
 	}
+}
+
+// Configure applies runtime configuration from the application
+func (a *Adapter) Configure(cfg sources.AdapterConfig) {
+	a.downloadTimeout = cfg.DownloadTimeoutSeconds
+	a.client = nil
 }
 
 // SetCredentials sets the credentials for the adapter
@@ -265,10 +272,14 @@ func (a *Adapter) getClient() (*odp.Client, error) {
 		return nil, sources.NewAdapterError(sources.ErrCodeInvalidConfig, "Missing API key", nil)
 	}
 
-	// Start with default config and set API key
+	timeout := a.downloadTimeout
+	if timeout == 0 {
+		timeout = 3600
+	}
+
 	cfg := odp.DefaultConfig()
 	cfg.APIKey = apiKey
-	cfg.Timeout = 3600 // 1 hour timeout for large file downloads
+	cfg.Timeout = timeout
 
 	client, err := odp.NewClient(cfg)
 	if err != nil {

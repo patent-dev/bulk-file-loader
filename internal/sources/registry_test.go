@@ -91,6 +91,42 @@ func TestUpdateSourcePreservesCredentials(t *testing.T) {
 	}
 }
 
+type configurableMockAdapter struct {
+	mockAdapter
+	configuredTimeout int
+}
+
+func (m *configurableMockAdapter) Configure(cfg AdapterConfig) {
+	m.configuredTimeout = cfg.DownloadTimeoutSeconds
+}
+
+func TestConfigurableAdapterReceivesConfig(t *testing.T) {
+	db := setupTestDB(t)
+	registry := NewRegistry(db, &config.Config{DownloadTimeout: 7200})
+
+	adapter := &configurableMockAdapter{
+		mockAdapter: mockAdapter{id: "configurable", name: "Configurable"},
+	}
+	registry.Register(adapter)
+
+	if adapter.configuredTimeout != 7200 {
+		t.Errorf("Configure() got timeout %d, want 7200", adapter.configuredTimeout)
+	}
+}
+
+func TestNonConfigurableAdapterNotBroken(t *testing.T) {
+	db := setupTestDB(t)
+	registry := NewRegistry(db, &config.Config{DownloadTimeout: 7200})
+
+	adapter := &mockAdapter{id: "plain", name: "Plain"}
+	registry.Register(adapter) // should not panic
+
+	got, ok := registry.Get("plain")
+	if !ok || got.ID() != "plain" {
+		t.Error("non-configurable adapter should still be registered")
+	}
+}
+
 func TestUpdateSourceWithNewCredentials(t *testing.T) {
 	db := setupTestDB(t)
 	registry := NewRegistry(db, &config.Config{})

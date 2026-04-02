@@ -1,8 +1,10 @@
 package database
 
 import (
+	"path/filepath"
 	"testing"
 
+	"github.com/patent-dev/bulk-file-loader/config"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -185,6 +187,37 @@ func TestFileWithDownloadEntries(t *testing.T) {
 	}
 	if loadedFile.DownloadEntries[0].Status != DownloadStatusPending {
 		t.Errorf("Entry status = %q, want pending", loadedFile.DownloadEntries[0].Status)
+	}
+}
+
+func TestSQLiteWALMode(t *testing.T) {
+	dir := t.TempDir()
+	cfg := &config.Config{
+		DBDriver: "sqlite",
+		DataDir:  dir,
+	}
+
+	db, err := New(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var journalMode string
+	db.Raw("PRAGMA journal_mode").Scan(&journalMode)
+	if journalMode != "wal" {
+		t.Errorf("journal_mode = %q, want wal", journalMode)
+	}
+
+	var busyTimeout int
+	db.Raw("PRAGMA busy_timeout").Scan(&busyTimeout)
+	if busyTimeout != 5000 {
+		t.Errorf("busy_timeout = %d, want 5000", busyTimeout)
+	}
+
+	// Verify the database file was created
+	dbPath := filepath.Join(dir, "bulk-loader.db")
+	if _, err := New(&config.Config{DBDriver: "sqlite", DataDir: dir}); err != nil {
+		t.Fatalf("failed to reopen database at %s: %v", dbPath, err)
 	}
 }
 

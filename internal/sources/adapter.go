@@ -65,6 +65,18 @@ type FileInfo struct {
 // ProgressFunc is called during file downloads to report progress
 type ProgressFunc func(bytesWritten, totalBytes int64)
 
+// AdapterConfig holds configuration passed to adapters that support it
+type AdapterConfig struct {
+	DownloadTimeoutSeconds int
+}
+
+// ConfigurableAdapter is an optional interface for adapters that accept
+// runtime configuration from the application. Adapters that do not need
+// configuration can ignore this interface.
+type ConfigurableAdapter interface {
+	Configure(cfg AdapterConfig)
+}
+
 // AdapterError represents an error from an adapter
 type AdapterError struct {
 	Code    string

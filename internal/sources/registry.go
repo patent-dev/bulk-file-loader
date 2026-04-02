@@ -42,6 +42,12 @@ func (r *Registry) Register(adapter Adapter) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.adapters[adapter.ID()] = adapter
+
+	if configurable, ok := adapter.(ConfigurableAdapter); ok {
+		configurable.Configure(AdapterConfig{
+			DownloadTimeoutSeconds: r.cfg.DownloadTimeout,
+		})
+	}
 }
 
 // Get returns an adapter by ID

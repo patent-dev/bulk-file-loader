@@ -21,7 +21,8 @@ func New(cfg *config.Config) (*DB, error) {
 
 	switch cfg.DBDriver {
 	case "sqlite":
-		dialector = sqlite.Open(cfg.DatabasePath())
+		dsn := cfg.DatabasePath() + "?_journal_mode=WAL&_busy_timeout=5000"
+		dialector = sqlite.Open(dsn)
 	case "postgres":
 		if cfg.DBDSN == "" {
 			return nil, fmt.Errorf("BULK_LOADER_DB_DSN is required for postgres")

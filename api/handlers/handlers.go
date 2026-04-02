@@ -739,6 +739,13 @@ func (h *Handler) UpdateProductSchedule(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
+	// If auto-download was just disabled, cancel in-progress downloads for this product
+	if wasAutoDownload && !product.AutoDownload {
+		if cancelled := h.downloader.CancelByProduct(product.ID); cancelled > 0 {
+			slog.Info("Cancelled active downloads", "productID", product.ID, "count", cancelled)
+		}
+	}
+
 	// If auto-download was just enabled, trigger immediate download of pending files
 	if product.AutoDownload && !wasAutoDownload {
 		go h.downloadPendingFiles(product.ID)

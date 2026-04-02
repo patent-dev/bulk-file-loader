@@ -32,7 +32,11 @@ Environment variables:
 | `BULK_LOADER_PASSPHRASE` | - | Required for auth |
 | `BULK_LOADER_PORT` | 8080 | HTTP port |
 | `BULK_LOADER_DATA_DIR` | ./data | Data directory |
-| `BULK_LOADER_DB_DRIVER` | sqlite | Database driver |
+| `BULK_LOADER_DB_DRIVER` | sqlite | Database driver (sqlite, postgres, mysql) |
+| `BULK_LOADER_DB_DSN` | - | Database connection string (required for postgres/mysql) |
+| `BULK_LOADER_DOWNLOAD_TIMEOUT` | 3600 | Per-file download timeout in seconds |
+| `BULK_LOADER_MAX_CONCURRENT` | 3 | Maximum concurrent downloads |
+| `BULK_LOADER_DEV_MODE` | false | Enable development mode |
 
 ## Related Projects
 

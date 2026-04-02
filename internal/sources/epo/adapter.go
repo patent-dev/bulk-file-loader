@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+	"strings"
 
 	"github.com/patent-dev/bulk-file-loader/internal/sources"
 	bdds "github.com/patent-dev/epo-bdds"
@@ -17,8 +18,9 @@ const (
 
 // Adapter implements the sources.Adapter interface for EPO BDDS
 type Adapter struct {
-	client      *bdds.Client
-	credentials map[string]string
+	client          *bdds.Client
+	credentials     map[string]string
+	downloadTimeout int
 }
 
 // New creates a new EPO BDDS adapter
@@ -56,6 +58,12 @@ func (a *Adapter) CredentialFields() []sources.CredentialField {
 			HelpText: "Your EPO BDDS password",
 		},
 	}
+}
+
+// Configure applies runtime configuration from the application
+func (a *Adapter) Configure(cfg sources.AdapterConfig) {
+	a.downloadTimeout = cfg.DownloadTimeoutSeconds
+	a.client = nil
 }
 
 // SetCredentials sets the credentials for the adapter
@@ -228,9 +236,15 @@ func (a *Adapter) getClient() (*bdds.Client, error) {
 		return nil, sources.NewAdapterError(sources.ErrCodeInvalidConfig, "Missing credentials", nil)
 	}
 
+	timeout := a.downloadTimeout
+	if timeout == 0 {
+		timeout = 3600
+	}
+
 	client, err := bdds.NewClient(&bdds.Config{
 		Username: username,
 		Password: password,
+		Timeout:  timeout,
 	})
 	if err != nil {
 		return nil, sources.NewAdapterError(sources.ErrCodeAuth, "Failed to create client", err)
@@ -258,7 +272,7 @@ func parseFileSize(sizeStr string) int64 {
 		"TB": 1024 * 1024 * 1024 * 1024,
 	}
 
-	if mult, ok := multipliers[unit]; ok {
+	if mult, ok := multipliers[strings.ToUpper(unit)]; ok {
 		return int64(size * mult)
 	}
 

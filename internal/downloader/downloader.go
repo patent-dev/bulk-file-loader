@@ -25,6 +25,12 @@ var (
 	ErrSourceNotFound     = errors.New("source not found")
 )
 
+// activeDownload tracks a running download for cancellation
+type activeDownload struct {
+	cancel    context.CancelFunc
+	productID string
+}
+
 // Downloader manages file downloads
 type Downloader struct {
 	db       *database.DB
@@ -34,7 +40,7 @@ type Downloader struct {
 
 	semaphore chan struct{}
 	progress  *ProgressTracker
-	active    sync.Map // fileID -> cancelFunc
+	active    sync.Map // fileID -> *activeDownload
 }
 
 // New creates a new downloader
@@ -71,8 +77,8 @@ func (d *Downloader) Download(ctx context.Context, fileID string) error {
 	// Create cancellable context
 	ctx, cancel := context.WithTimeout(ctx, time.Duration(d.cfg.DownloadTimeout)*time.Second)
 
-	// Store cancel func
-	d.active.Store(fileID, cancel)
+	// Store active download for cancellation
+	d.active.Store(fileID, &activeDownload{cancel: cancel, productID: file.ProductID})
 	defer func() {
 		d.active.Delete(fileID)
 		cancel()
@@ -131,13 +137,20 @@ func (d *Downloader) Download(ctx context.Context, fileID string) error {
 		DownloadURI:       file.DownloadURI,
 	}
 
+	var entryMu sync.Mutex
+	var lastDBUpdate time.Time
 	err = adapter.DownloadFile(ctx, fileInfo, writer, func(bytesWritten, totalBytes int64) {
 		d.progress.Update(fileID, bytesWritten, totalBytes)
 
-		// Update database entry periodically
-		entry.Progress = bytesWritten
-		entry.TotalBytes = totalBytes
-		d.db.Save(entry)
+		// Throttle database updates to reduce SQLite write contention
+		entryMu.Lock()
+		if time.Since(lastDBUpdate) >= 5*time.Second {
+			entry.Progress = bytesWritten
+			entry.TotalBytes = totalBytes
+			d.db.Save(entry)
+			lastDBUpdate = time.Now()
+		}
+		entryMu.Unlock()
 	})
 
 	tempFile.Close()
@@ -177,11 +190,26 @@ func (d *Downloader) Download(ctx context.Context, fileID string) error {
 
 // Cancel cancels an in-progress download
 func (d *Downloader) Cancel(fileID string) error {
-	if cancelFunc, ok := d.active.Load(fileID); ok {
-		cancelFunc.(context.CancelFunc)()
+	if val, ok := d.active.Load(fileID); ok {
+		val.(*activeDownload).cancel()
 		return nil
 	}
 	return ErrFileNotFound
+}
+
+// CancelByProduct cancels all in-progress downloads for a product.
+// Returns the number of downloads cancelled.
+func (d *Downloader) CancelByProduct(productID string) int {
+	var cancelled int
+	d.active.Range(func(key, value any) bool {
+		ad := value.(*activeDownload)
+		if ad.productID == productID {
+			ad.cancel()
+			cancelled++
+		}
+		return true
+	})
+	return cancelled
 }
 
 // ActiveDownloads returns progress for all active downloads
