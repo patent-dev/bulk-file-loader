@@ -8,14 +8,14 @@ COPY web/ui/ ./
 RUN npm run build
 
 # Build backend
-FROM golang:1.25-alpine AS backend-builder
+FROM golang:1.26-alpine AS backend-builder
 
 RUN apk add --no-cache git gcc musl-dev
 
 WORKDIR /app
 
 # Install oapi-codegen
-RUN go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.5.1
+RUN go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.6.0
 
 # Copy go mod files
 COPY go.mod go.sum ./
