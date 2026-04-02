@@ -6,7 +6,7 @@ Automated bulk data download manager for patent data.
 
 ## Features
 
-- Automated scheduled downloads from EPO and USPTO
+- Automated scheduled downloads from EPO, USPTO and DPMA
 - Web UI for configuration and monitoring
 - Webhook notifications
 - Multi-database support (SQLite, PostgreSQL, MySQL)
