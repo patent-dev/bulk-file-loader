@@ -48,18 +48,18 @@ func New(
 }
 
 // Helper functions
-func writeJSON(w http.ResponseWriter, status int, data interface{}) {
+func writeJSON(w http.ResponseWriter, status int, data any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(data)
+	_ = json.NewEncoder(w).Encode(data)
 }
 
 func writeError(w http.ResponseWriter, status int, message string) {
 	writeJSON(w, status, generated.Error{Message: message})
 }
 
-func decodeJSON(r *http.Request, v interface{}) error {
+func decodeJSON(r *http.Request, v any) error {
 	return json.NewDecoder(r.Body).Decode(v)
 }
 
@@ -98,7 +98,7 @@ func (h *Handler) SetupAuth(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Auto-login after setup
-	h.auth.Login(w, req.Passphrase)
+	_ = h.auth.Login(w, req.Passphrase)
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -468,7 +468,7 @@ func (h *Handler) ListFiles(w http.ResponseWriter, r *http.Request, params gener
 	var files []database.File
 	var total int64
 
-	query := h.db.DB.Model(&database.File{})
+	query := h.db.Model(&database.File{})
 
 	if params.SourceId != nil {
 		query = query.Where("source_id = ?", *params.SourceId)
@@ -573,7 +573,7 @@ func (h *Handler) DeleteFile(w http.ResponseWriter, r *http.Request, id string) 
 func (h *Handler) DownloadFile(w http.ResponseWriter, r *http.Request, id string) {
 	go func() {
 		ctx := context.Background()
-		h.downloader.Download(ctx, id)
+		_ = h.downloader.Download(ctx, id)
 	}()
 
 	w.WriteHeader(http.StatusAccepted)
@@ -612,7 +612,7 @@ func (h *Handler) ListDownloads(w http.ResponseWriter, r *http.Request, params g
 	var entries []database.DownloadEntry
 	var total int64
 
-	query := h.db.DB.Model(&database.DownloadEntry{})
+	query := h.db.Model(&database.DownloadEntry{})
 
 	if params.Status != nil {
 		query = query.Where("status = ?", *params.Status)
@@ -666,7 +666,7 @@ func (h *Handler) StreamActiveDownloads(w http.ResponseWriter, r *http.Request) 
 		case <-ticker.C:
 			downloads := h.downloader.ActiveDownloads()
 			data, _ := json.Marshal(downloads)
-			fmt.Fprintf(w, "data: %s\n\n", data)
+			_, _ = fmt.Fprintf(w, "data: %s\n\n", data)
 			flusher.Flush()
 		}
 	}

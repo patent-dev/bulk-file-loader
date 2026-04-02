@@ -87,7 +87,7 @@ func (m *Manager) deliverWebhook(ctx context.Context, webhook database.Webhook, 
 		slog.Error("Webhook delivery failed", "error", err, "webhookID", webhook.ID)
 		return
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode >= 400 {
 		slog.Warn("Webhook error", "status", resp.StatusCode, "webhookID", webhook.ID)
@@ -116,7 +116,7 @@ func (m *Manager) UpdateWebhook(id uint, name, url string, events []string, enab
 	if err != nil {
 		return err
 	}
-	return m.db.Model(&database.Webhook{}).Where("id = ?", id).Updates(map[string]interface{}{
+	return m.db.Model(&database.Webhook{}).Where("id = ?", id).Updates(map[string]any{
 		"name":    name,
 		"url":     url,
 		"events":  string(eventsJSON),
@@ -143,7 +143,7 @@ func (m *Manager) GetWebhook(id uint) (*database.Webhook, error) {
 
 func ParseEvents(eventsJSON string) []string {
 	var events []string
-	json.Unmarshal([]byte(eventsJSON), &events)
+	_ = json.Unmarshal([]byte(eventsJSON), &events)
 	return events
 }
 

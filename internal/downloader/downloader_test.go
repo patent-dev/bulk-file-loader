@@ -40,7 +40,7 @@ func (m *mockAdapter) DownloadFile(ctx context.Context, file sources.FileInfo, w
 		return m.downloadFunc(ctx, file, w, progress)
 	}
 	// Default: write some bytes
-	w.Write([]byte("test content"))
+	_, _ = w.Write([]byte("test content"))
 	progress(12, 12)
 	return nil
 }
@@ -55,7 +55,7 @@ func setupTestEnv(t *testing.T) (*database.DB, *sources.Registry, *hooks.Manager
 	if err != nil {
 		t.Fatal(err)
 	}
-	gormDB.AutoMigrate(
+	_ = gormDB.AutoMigrate(
 		&database.Source{},
 		&database.Product{},
 		&database.Delivery{},
@@ -158,7 +158,7 @@ func TestDownloadInProgress(t *testing.T) {
 		defer wg.Done()
 		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 		defer cancel()
-		downloader.Download(ctx, "file-1")
+		_ = downloader.Download(ctx, "file-1")
 	}()
 
 	// Give first download time to start

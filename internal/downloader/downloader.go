@@ -153,10 +153,10 @@ func (d *Downloader) Download(ctx context.Context, fileID string) error {
 		entryMu.Unlock()
 	})
 
-	tempFile.Close()
+	_ = tempFile.Close()
 
 	if err != nil {
-		os.Remove(tempPath)
+		_ = os.Remove(tempPath)
 		if ctx.Err() == context.Canceled {
 			return d.handleCancelled(entry, &file)
 		}
@@ -165,7 +165,7 @@ func (d *Downloader) Download(ctx context.Context, fileID string) error {
 
 	// Move temp file to final location
 	if err := os.Rename(tempPath, downloadPath); err != nil {
-		os.Remove(tempPath)
+		_ = os.Remove(tempPath)
 		return d.handleError(entry, &file, "FILESYSTEM_ERROR", "Failed to move file", err)
 	}
 

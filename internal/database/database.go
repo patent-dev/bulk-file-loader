@@ -55,7 +55,7 @@ func New(cfg *config.Config) (*DB, error) {
 
 	result := db.Model(&DownloadEntry{}).
 		Where("status = ?", DownloadStatusDownloading).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"status":        DownloadStatusFailed,
 			"error_message": "interrupted by restart",
 		})

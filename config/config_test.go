@@ -8,18 +8,17 @@ import (
 
 func TestLoadDefaults(t *testing.T) {
 	// Clear env vars to test defaults
-	os.Unsetenv("BULK_LOADER_PASSPHRASE")
-	os.Unsetenv("BULK_LOADER_DB_DRIVER")
-	os.Unsetenv("BULK_LOADER_DB_DSN")
-	os.Unsetenv("BULK_LOADER_PORT")
-	os.Unsetenv("BULK_LOADER_MAX_CONCURRENT")
-	os.Unsetenv("BULK_LOADER_DOWNLOAD_TIMEOUT")
-	os.Unsetenv("BULK_LOADER_DEV_MODE")
+	t.Setenv("BULK_LOADER_PASSPHRASE", "")
+	t.Setenv("BULK_LOADER_DB_DRIVER", "")
+	t.Setenv("BULK_LOADER_DB_DSN", "")
+	t.Setenv("BULK_LOADER_PORT", "")
+	t.Setenv("BULK_LOADER_MAX_CONCURRENT", "")
+	t.Setenv("BULK_LOADER_DOWNLOAD_TIMEOUT", "")
+	t.Setenv("BULK_LOADER_DEV_MODE", "")
 
 	// Use temp directory
 	tmpDir := t.TempDir()
-	os.Setenv("BULK_LOADER_DATA_DIR", tmpDir)
-	defer os.Unsetenv("BULK_LOADER_DATA_DIR")
+	t.Setenv("BULK_LOADER_DATA_DIR", tmpDir)
 
 	cfg, err := Load()
 	if err != nil {
@@ -46,27 +45,15 @@ func TestLoadDefaults(t *testing.T) {
 func TestLoadFromEnv(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	os.Setenv("BULK_LOADER_PASSPHRASE", "secret123")
-	os.Setenv("BULK_LOADER_DB_DRIVER", "postgres")
-	os.Setenv("BULK_LOADER_DB_DSN", "postgres://localhost/test")
-	os.Setenv("BULK_LOADER_DATA_DIR", tmpDir)
-	os.Setenv("BULK_LOADER_PORT", "9000")
-	os.Setenv("BULK_LOADER_MAX_CONCURRENT", "5")
-	os.Setenv("BULK_LOADER_DOWNLOAD_TIMEOUT", "7200")
-	os.Setenv("BULK_LOADER_DEV_MODE", "true")
-	os.Setenv("BULK_LOADER_VITE_PROXY", "http://localhost:5173")
-
-	defer func() {
-		os.Unsetenv("BULK_LOADER_PASSPHRASE")
-		os.Unsetenv("BULK_LOADER_DB_DRIVER")
-		os.Unsetenv("BULK_LOADER_DB_DSN")
-		os.Unsetenv("BULK_LOADER_DATA_DIR")
-		os.Unsetenv("BULK_LOADER_PORT")
-		os.Unsetenv("BULK_LOADER_MAX_CONCURRENT")
-		os.Unsetenv("BULK_LOADER_DOWNLOAD_TIMEOUT")
-		os.Unsetenv("BULK_LOADER_DEV_MODE")
-		os.Unsetenv("BULK_LOADER_VITE_PROXY")
-	}()
+	t.Setenv("BULK_LOADER_PASSPHRASE", "secret123")
+	t.Setenv("BULK_LOADER_DB_DRIVER", "postgres")
+	t.Setenv("BULK_LOADER_DB_DSN", "postgres://localhost/test")
+	t.Setenv("BULK_LOADER_DATA_DIR", tmpDir)
+	t.Setenv("BULK_LOADER_PORT", "9000")
+	t.Setenv("BULK_LOADER_MAX_CONCURRENT", "5")
+	t.Setenv("BULK_LOADER_DOWNLOAD_TIMEOUT", "7200")
+	t.Setenv("BULK_LOADER_DEV_MODE", "true")
+	t.Setenv("BULK_LOADER_VITE_PROXY", "http://localhost:5173")
 
 	cfg, err := Load()
 	if err != nil {
@@ -101,10 +88,8 @@ func TestLoadFromEnv(t *testing.T) {
 
 func TestInvalidPortFallsBackToDefault(t *testing.T) {
 	tmpDir := t.TempDir()
-	os.Setenv("BULK_LOADER_DATA_DIR", tmpDir)
-	os.Setenv("BULK_LOADER_PORT", "not-a-number")
-	defer os.Unsetenv("BULK_LOADER_DATA_DIR")
-	defer os.Unsetenv("BULK_LOADER_PORT")
+	t.Setenv("BULK_LOADER_DATA_DIR", tmpDir)
+	t.Setenv("BULK_LOADER_PORT", "not-a-number")
 
 	cfg, err := Load()
 	if err != nil {
@@ -136,8 +121,7 @@ func TestLoadCreatesDirectories(t *testing.T) {
 	tmpDir := t.TempDir()
 	dataDir := filepath.Join(tmpDir, "nested", "data")
 
-	os.Setenv("BULK_LOADER_DATA_DIR", dataDir)
-	defer os.Unsetenv("BULK_LOADER_DATA_DIR")
+	t.Setenv("BULK_LOADER_DATA_DIR", dataDir)
 
 	_, err := Load()
 	if err != nil {

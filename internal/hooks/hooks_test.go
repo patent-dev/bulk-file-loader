@@ -24,7 +24,7 @@ func setupTestDB(t *testing.T) *database.DB {
 	if err != nil {
 		t.Fatal(err)
 	}
-	gormDB.AutoMigrate(&database.Webhook{})
+	_ = gormDB.AutoMigrate(&database.Webhook{})
 	return &database.DB{DB: gormDB}
 }
 
@@ -52,8 +52,8 @@ func TestListWebhooks(t *testing.T) {
 	db := setupTestDB(t)
 	manager := New(db)
 
-	manager.CreateWebhook("Hook 1", "https://example.com/1", []string{"*"})
-	manager.CreateWebhook("Hook 2", "https://example.com/2", []string{"download.completed"})
+	_, _ = manager.CreateWebhook("Hook 1", "https://example.com/1", []string{"*"})
+	_, _ = manager.CreateWebhook("Hook 2", "https://example.com/2", []string{"download.completed"})
 
 	webhooks, err := manager.ListWebhooks()
 	if err != nil {
@@ -125,13 +125,13 @@ func TestEmitDelivers(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
-		json.Unmarshal(body, &receivedEvent)
+		_ = json.Unmarshal(body, &receivedEvent)
 		received.Store(true)
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
 
-	manager.CreateWebhook("Test", server.URL, []string{"download.completed"})
+	_, _ = manager.CreateWebhook("Test", server.URL, []string{"download.completed"})
 
 	event := NewEvent(EventDownloadCompleted, "source-1").
 		WithFile("file-1", "test.zip", 1024, "sha256:abc", "/downloads/test.zip")
@@ -170,8 +170,8 @@ func TestEmitMatchesEvents(t *testing.T) {
 	}))
 	defer failedServer.Close()
 
-	manager.CreateWebhook("Completed Only", completedServer.URL, []string{"download.completed"})
-	manager.CreateWebhook("Failed Only", failedServer.URL, []string{"download.failed"})
+	_, _ = manager.CreateWebhook("Completed Only", completedServer.URL, []string{"download.completed"})
+	_, _ = manager.CreateWebhook("Failed Only", failedServer.URL, []string{"download.failed"})
 
 	// Emit completed event
 	manager.Emit(context.Background(), NewEvent(EventDownloadCompleted, "s1"))
@@ -208,7 +208,7 @@ func TestEmitWildcard(t *testing.T) {
 	}))
 	defer server.Close()
 
-	manager.CreateWebhook("All Events", server.URL, []string{"*"})
+	_, _ = manager.CreateWebhook("All Events", server.URL, []string{"*"})
 
 	manager.Emit(context.Background(), NewEvent(EventDownloadCompleted, "s1"))
 	manager.Emit(context.Background(), NewEvent(EventDownloadFailed, "s1"))
@@ -233,7 +233,7 @@ func TestDisabledWebhookNotDelivered(t *testing.T) {
 	defer server.Close()
 
 	webhook, _ := manager.CreateWebhook("Disabled", server.URL, []string{"*"})
-	manager.UpdateWebhook(webhook.ID, webhook.Name, webhook.URL, []string{"*"}, false)
+	_ = manager.UpdateWebhook(webhook.ID, webhook.Name, webhook.URL, []string{"*"}, false)
 
 	manager.Emit(context.Background(), NewEvent(EventDownloadCompleted, "s1"))
 	time.Sleep(100 * time.Millisecond)

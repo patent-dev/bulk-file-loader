@@ -21,7 +21,7 @@ func setupTestDB(t *testing.T) *database.DB {
 	if err != nil {
 		t.Fatal(err)
 	}
-	gormDB.AutoMigrate(
+	_ = gormDB.AutoMigrate(
 		&database.Source{},
 		&database.Product{},
 		&database.Delivery{},
@@ -110,7 +110,7 @@ func TestUnscheduleProduct(t *testing.T) {
 		CheckWindowStart: "0 6 * * *",
 	}
 	db.Create(product)
-	scheduler.ScheduleProduct(product)
+	_ = scheduler.ScheduleProduct(product)
 
 	scheduler.UnscheduleProduct(product.ID)
 
@@ -138,7 +138,7 @@ func TestGetNextRun(t *testing.T) {
 		CheckWindowStart: "0 6 * * *",
 	}
 	db.Create(product)
-	scheduler.ScheduleProduct(product)
+	_ = scheduler.ScheduleProduct(product)
 
 	nextRun := scheduler.GetNextRun(product.ID)
 	if nextRun == nil {
@@ -210,13 +210,13 @@ func TestRescheduleProduct(t *testing.T) {
 		CheckWindowStart: "0 6 * * *",
 	}
 	db.Create(product)
-	scheduler.ScheduleProduct(product)
+	_ = scheduler.ScheduleProduct(product)
 
 	oldEntryID := scheduler.entryIDs[product.ID]
 
 	// Reschedule with new cron
 	product.CheckWindowStart = "0 12 * * *"
-	scheduler.ScheduleProduct(product)
+	_ = scheduler.ScheduleProduct(product)
 
 	newEntryID := scheduler.entryIDs[product.ID]
 

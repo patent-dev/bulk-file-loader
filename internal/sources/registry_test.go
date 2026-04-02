@@ -55,7 +55,7 @@ func setupTestDB(t *testing.T) *database.DB {
 	if err != nil {
 		t.Fatal(err)
 	}
-	gormDB.AutoMigrate(&database.Source{})
+	_ = gormDB.AutoMigrate(&database.Source{})
 	return &database.DB{DB: gormDB}
 }
 

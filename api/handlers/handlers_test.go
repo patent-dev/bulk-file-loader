@@ -43,7 +43,7 @@ func (m *mockAdapter) FetchFiles(context.Context, string, string) ([]sources.Fil
 	return nil, nil
 }
 func (m *mockAdapter) DownloadFile(ctx context.Context, file sources.FileInfo, w io.Writer, progress sources.ProgressFunc) error {
-	w.Write([]byte("content"))
+	_, _ = w.Write([]byte("content"))
 	return nil
 }
 
@@ -56,7 +56,7 @@ func setupTestHandler(t *testing.T) (*Handler, *database.DB) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	gormDB.AutoMigrate(
+	_ = gormDB.AutoMigrate(
 		&database.Source{},
 		&database.Product{},
 		&database.Delivery{},
@@ -100,7 +100,7 @@ func TestHealthCheck(t *testing.T) {
 	}
 
 	var resp generated.HealthResponse
-	json.NewDecoder(w.Body).Decode(&resp)
+	_ = json.NewDecoder(w.Body).Decode(&resp)
 
 	if resp.Status != "healthy" {
 		t.Errorf("Status = %q, want healthy", resp.Status)
@@ -123,7 +123,7 @@ func TestGetAuthStatusNotConfigured(t *testing.T) {
 	}
 
 	var resp generated.AuthStatus
-	json.NewDecoder(w.Body).Decode(&resp)
+	_ = json.NewDecoder(w.Body).Decode(&resp)
 
 	if resp.Configured {
 		t.Error("Configured = true, want false")
@@ -180,8 +180,8 @@ func TestSetupAuthAlreadyConfigured(t *testing.T) {
 	handler, db := setupTestHandler(t)
 
 	// Configure first
-	db.SetSetting("passphrase_hash", "somehash")
-	db.SetSetting("passphrase_salt", "somesalt")
+	_ = db.SetSetting("passphrase_hash", "somehash")
+	_ = db.SetSetting("passphrase_salt", "somesalt")
 
 	body := bytes.NewBufferString(`{"passphrase":"testpassphrase123"}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/auth/setup", body)
@@ -211,7 +211,7 @@ func TestListSources(t *testing.T) {
 	}
 
 	var sources []generated.Source
-	json.NewDecoder(w.Body).Decode(&sources)
+	_ = json.NewDecoder(w.Body).Decode(&sources)
 
 	if len(sources) != 1 {
 		t.Errorf("ListSources returned %d sources, want 1", len(sources))
@@ -262,7 +262,7 @@ func TestListProducts(t *testing.T) {
 	}
 
 	var products []generated.Product
-	json.NewDecoder(w.Body).Decode(&products)
+	_ = json.NewDecoder(w.Body).Decode(&products)
 
 	if len(products) != 2 {
 		t.Errorf("ListProducts returned %d products, want 2", len(products))
@@ -284,7 +284,7 @@ func TestListProductsFilterBySource(t *testing.T) {
 	handler.ListProducts(w, req, generated.ListProductsParams{SourceId: &sourceID})
 
 	var products []generated.Product
-	json.NewDecoder(w.Body).Decode(&products)
+	_ = json.NewDecoder(w.Body).Decode(&products)
 
 	if len(products) != 1 {
 		t.Errorf("ListProducts with filter returned %d products, want 1", len(products))
@@ -312,7 +312,7 @@ func TestListFiles(t *testing.T) {
 	}
 
 	var resp generated.FileListResponse
-	json.NewDecoder(w.Body).Decode(&resp)
+	_ = json.NewDecoder(w.Body).Decode(&resp)
 
 	if len(resp.Files) != 1 {
 		t.Errorf("ListFiles returned %d files, want 1", len(resp.Files))
@@ -341,7 +341,7 @@ func TestGetStats(t *testing.T) {
 	}
 
 	var stats generated.StatsResponse
-	json.NewDecoder(w.Body).Decode(&stats)
+	_ = json.NewDecoder(w.Body).Decode(&stats)
 
 	if stats.TotalFiles == nil || *stats.TotalFiles != 2 {
 		t.Errorf("TotalFiles = %v, want 2", stats.TotalFiles)
@@ -367,7 +367,7 @@ func TestListWebhooks(t *testing.T) {
 	}
 
 	var webhooks []generated.Webhook
-	json.NewDecoder(w.Body).Decode(&webhooks)
+	_ = json.NewDecoder(w.Body).Decode(&webhooks)
 
 	if len(webhooks) != 2 {
 		t.Errorf("ListWebhooks returned %d webhooks, want 2", len(webhooks))
@@ -389,7 +389,7 @@ func TestCreateWebhook(t *testing.T) {
 	}
 
 	var webhook generated.Webhook
-	json.NewDecoder(w.Body).Decode(&webhook)
+	_ = json.NewDecoder(w.Body).Decode(&webhook)
 
 	if webhook.Name != "New Hook" {
 		t.Errorf("Name = %q, want New Hook", webhook.Name)
