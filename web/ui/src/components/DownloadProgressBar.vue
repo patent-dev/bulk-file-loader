@@ -5,7 +5,6 @@ const props = defineProps<{
   bytesWritten: number
   totalBytes: number
   speed: number
-  startedAt?: string
   compact?: boolean
 }>()
 
@@ -31,13 +30,22 @@ const progress = computed(() => {
 })
 
 const elapsed = computed(() => {
-  if (!props.startedAt) return 0
-  return (Date.now() - new Date(props.startedAt).getTime()) / 1000
+  if (props.speed <= 0) return -1
+  return props.bytesWritten / props.speed
 })
 
 const eta = computed(() => {
   if (props.speed <= 0 || props.totalBytes <= 0) return -1
   return (props.totalBytes - props.bytesWritten) / props.speed
+})
+
+const rightLabel = computed(() => {
+  const parts: string[] = []
+  if (progress.value >= 0) parts.push(progress.value + '%')
+  if (elapsed.value > 0) parts.push(formatDuration(elapsed.value))
+  if (eta.value > 0) parts.push('(' + formatDuration(eta.value) + ' left)')
+  if (props.speed > 0) parts.push(formatBytes(props.speed) + '/s')
+  return parts.join(' ')
 })
 </script>
 
@@ -64,12 +72,7 @@ const eta = computed(() => {
       <span v-else>
         {{ formatBytes(bytesWritten) }} downloaded
       </span>
-      <span class="flex gap-2">
-        <template v-if="progress >= 0">{{ progress }}%</template>
-        <template v-if="elapsed > 0">{{ formatDuration(elapsed) }}</template>
-        <template v-if="eta > 0">({{ formatDuration(eta) }} left)</template>
-        <template v-if="speed > 0">{{ formatBytes(speed) }}/s</template>
-      </span>
+      <span>{{ rightLabel }}</span>
     </div>
   </div>
 </template>

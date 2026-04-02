@@ -232,7 +232,7 @@ onUnmounted(() => {
             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">File</th>
             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Size</th>
             <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Released</th>
-            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase w-72">Status</th>
             <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
           </tr>
         </thead>
@@ -276,7 +276,6 @@ onUnmounted(() => {
                 :bytes-written="downloadProgressMap.get(file.id)!.bytesWritten"
                 :total-bytes="downloadProgressMap.get(file.id)!.totalBytes"
                 :speed="downloadProgressMap.get(file.id)!.speed"
-                :started-at="downloadProgressMap.get(file.id)!.startedAt"
                 :compact="true"
                 class="mt-1"
               />

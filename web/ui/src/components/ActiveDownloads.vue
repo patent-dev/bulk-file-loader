@@ -42,7 +42,6 @@ async function cancelDownload(fileId: string) {
           :bytes-written="download.bytesWritten"
           :total-bytes="download.totalBytes"
           :speed="download.speed"
-          :started-at="download.startedAt"
         />
       </div>
     </div>
