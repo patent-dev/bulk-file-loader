@@ -8,7 +8,7 @@ require (
 	github.com/patent-dev/epo-bdds v0.1.0
 	github.com/patent-dev/uspto-odp v1.2.1
 	github.com/robfig/cron/v3 v3.0.1
-	golang.org/x/crypto v0.31.0
+	golang.org/x/crypto v0.49.0
 	gorm.io/driver/mysql v1.5.7
 	gorm.io/driver/postgres v1.5.11
 	gorm.io/driver/sqlite v1.5.7
@@ -35,8 +35,8 @@ require (
 	github.com/oasdiff/yaml3 v0.0.0-20250309153720-d2182401db90 // indirect
 	github.com/perimeterx/marshmallow v1.1.5 // indirect
 	github.com/woodsbury/decimal128 v1.3.0 // indirect
-	golang.org/x/sync v0.10.0 // indirect
-	golang.org/x/sys v0.28.0 // indirect
-	golang.org/x/text v0.21.0 // indirect
+	golang.org/x/sync v0.20.0 // indirect
+	golang.org/x/sys v0.42.0 // indirect
+	golang.org/x/text v0.35.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
