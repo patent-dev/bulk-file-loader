@@ -1,10 +1,11 @@
 module github.com/patent-dev/bulk-file-loader
 
-go 1.25.0
+go 1.26.0
 
 require (
 	github.com/getkin/kin-openapi v0.133.0
-	github.com/oapi-codegen/runtime v1.1.2
+	github.com/oapi-codegen/runtime v1.2.0
+	github.com/patent-dev/dpma-connect-plus v0.2.2
 	github.com/patent-dev/epo-bdds v0.1.0
 	github.com/patent-dev/uspto-odp v1.2.1
 	github.com/robfig/cron/v3 v3.0.1

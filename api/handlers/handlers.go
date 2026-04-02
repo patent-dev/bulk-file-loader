@@ -597,6 +597,31 @@ func (h *Handler) SkipFile(w http.ResponseWriter, r *http.Request, id string) {
 	w.WriteHeader(http.StatusOK)
 }
 
+func (h *Handler) ResetFile(w http.ResponseWriter, r *http.Request, id string) {
+	if h.downloader.IsActive(id) {
+		writeError(w, http.StatusConflict, "Cannot reset file while download is in progress")
+		return
+	}
+
+	// Delete all download entries for this file, returning it to "available" status
+	result := h.db.Where("file_id = ?", id).Delete(&database.DownloadEntry{})
+	if result.Error != nil {
+		writeError(w, http.StatusInternalServerError, "Failed to reset file")
+		return
+	}
+	if result.RowsAffected == 0 {
+		writeError(w, http.StatusNotFound, "No download history found")
+		return
+	}
+
+	if err := h.db.Model(&database.File{}).Where("id = ?", id).Update("skipped", false).Error; err != nil {
+		slog.Error("Failed to unskip file during reset", "fileID", id, "error", err)
+	}
+
+	slog.Info("File reset", "fileID", id, "entriesRemoved", result.RowsAffected)
+	w.WriteHeader(http.StatusOK)
+}
+
 func (h *Handler) UnskipFile(w http.ResponseWriter, r *http.Request, id string) {
 	if err := h.db.Model(&database.File{}).Where("id = ?", id).Update("skipped", false).Error; err != nil {
 		writeError(w, http.StatusNotFound, "File not found")
@@ -664,8 +689,14 @@ func (h *Handler) StreamActiveDownloads(w http.ResponseWriter, r *http.Request) 
 		case <-r.Context().Done():
 			return
 		case <-ticker.C:
-			downloads := h.downloader.ActiveDownloads()
-			data, _ := json.Marshal(downloads)
+			payload := struct {
+				Downloads     []downloader.DownloadProgress `json:"downloads"`
+				StatusVersion uint64                        `json:"statusVersion"`
+			}{
+				Downloads:     h.downloader.ActiveDownloads(),
+				StatusVersion: h.downloader.StatusVersion(),
+			}
+			data, _ := json.Marshal(payload)
 			_, _ = fmt.Fprintf(w, "data: %s\n\n", data)
 			flusher.Flush()
 		}

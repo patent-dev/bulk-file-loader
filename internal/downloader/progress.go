@@ -1,14 +1,17 @@
 package downloader
 
 import (
+	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
 // ProgressTracker tracks download progress for multiple files
 type ProgressTracker struct {
-	downloads map[string]*DownloadProgress
-	mu        sync.RWMutex
+	downloads     map[string]*DownloadProgress
+	mu            sync.RWMutex
+	statusVersion atomic.Uint64
 }
 
 // DownloadProgress represents the progress of a single download
@@ -82,7 +85,7 @@ func (pt *ProgressTracker) Get(fileID string) *DownloadProgress {
 	return nil
 }
 
-// GetAll returns progress for all active downloads
+// GetAll returns progress for all active downloads, sorted by start time.
 func (pt *ProgressTracker) GetAll() []DownloadProgress {
 	pt.mu.RLock()
 	defer pt.mu.RUnlock()
@@ -91,6 +94,9 @@ func (pt *ProgressTracker) GetAll() []DownloadProgress {
 	for _, p := range pt.downloads {
 		result = append(result, *p)
 	}
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].StartedAt.Before(result[j].StartedAt)
+	})
 	return result
 }
 
@@ -109,4 +115,15 @@ func (p *DownloadProgress) ETA() time.Duration {
 	}
 	remaining := p.TotalBytes - p.BytesWritten
 	return time.Duration(float64(remaining)/p.Speed) * time.Second
+}
+
+// IncrementStatusVersion bumps the status version counter.
+// Called whenever a download changes status (started, completed, failed, cancelled).
+func (pt *ProgressTracker) IncrementStatusVersion() {
+	pt.statusVersion.Add(1)
+}
+
+// StatusVersion returns the current status version counter.
+func (pt *ProgressTracker) StatusVersion() uint64 {
+	return pt.statusVersion.Load()
 }

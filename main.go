@@ -24,6 +24,7 @@ import (
 	"github.com/patent-dev/bulk-file-loader/internal/hooks"
 	"github.com/patent-dev/bulk-file-loader/internal/scheduler"
 	"github.com/patent-dev/bulk-file-loader/internal/sources"
+	"github.com/patent-dev/bulk-file-loader/internal/sources/dpma"
 	"github.com/patent-dev/bulk-file-loader/internal/sources/epo"
 	"github.com/patent-dev/bulk-file-loader/internal/sources/uspto"
 )
@@ -66,7 +67,7 @@ func main() {
 	hooksManager := hooks.New(db)
 
 	sourceRegistry := sources.NewRegistry(db, cfg)
-	sourceRegistry.RegisterBuiltinAdapters(epo.New(), uspto.New())
+	sourceRegistry.RegisterBuiltinAdapters(epo.New(), uspto.New(), dpma.New())
 
 	if err := sourceRegistry.LoadCredentialsWithDecryptor(authService); err != nil {
 		slog.Debug("Credentials not loaded at startup", "error", err)

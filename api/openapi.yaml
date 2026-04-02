@@ -473,6 +473,30 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
+  /files/{id}/reset:
+    post:
+      tags: [files]
+      summary: Reset file status by clearing download history
+      operationId: resetFile
+      security:
+        - cookieAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: File reset to available
+        '404':
+          description: File not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
   /downloads:
     get:
       tags: [downloads]

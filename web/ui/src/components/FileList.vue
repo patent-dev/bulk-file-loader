@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { ref, watch, computed, onMounted, onUnmounted } from 'vue'
+import { useDownloadStream } from '../composables/useDownloadStream'
+import DownloadProgressBar from './DownloadProgressBar.vue'
 
 interface File {
   id: string
@@ -102,6 +104,19 @@ async function toggleSkip(file: File) {
   }
 }
 
+async function resetFile(fileId: string) {
+  try {
+    await fetch(`/api/files/${encodeURIComponent(fileId)}/reset`, {
+      method: 'POST',
+      credentials: 'include',
+    })
+    emit('files-changed')
+    fetchFiles()
+  } catch (error) {
+    console.error('Failed to reset file:', error)
+  }
+}
+
 async function deleteFile(fileId: string) {
   if (!confirm('Delete this file from disk?')) return
   try {
@@ -145,7 +160,6 @@ function getStatusBadgeClass(status: string): string {
 watch(() => props.productId, () => {
   offset.value = 0
   fetchFiles()
-  startRefreshInterval()
 })
 
 watch(statusFilter, () => {
@@ -153,36 +167,31 @@ watch(statusFilter, () => {
   fetchFiles()
 })
 
-let refreshInterval: number | null = null
+const { downloads, statusVersion } = useDownloadStream()
 
-function hasActiveDownloads(): boolean {
-  return files.value.some(f => f.status === 'downloading')
-}
-
-function startRefreshInterval() {
-  if (refreshInterval) {
-    clearInterval(refreshInterval)
+const downloadProgressMap = computed(() => {
+  const map = new Map<string, { bytesWritten: number; totalBytes: number; speed: number; startedAt: string }>()
+  for (const d of downloads.value) {
+    map.set(d.fileId, { bytesWritten: d.bytesWritten, totalBytes: d.totalBytes, speed: d.speed, startedAt: d.startedAt })
   }
-  // 5s when no files or active downloads, 30s otherwise
-  const interval = (files.value.length === 0 || hasActiveDownloads()) ? 5000 : 30000
-  refreshInterval = window.setInterval(() => {
-    const hadActiveDownloads = hasActiveDownloads()
-    fetchFiles(false)
-    // Adjust interval if state changed (files appeared or downloads completed)
-    if ((files.value.length > 0 && interval === 5000 && !hasActiveDownloads()) ||
-        (hadActiveDownloads && !hasActiveDownloads())) {
-      startRefreshInterval()
-    }
-  }, interval)
-}
+  return map
+})
+
+// Refetch immediately when any download status changes
+watch(statusVersion, () => {
+  fetchFiles(false)
+})
+
+// Fallback poll in case SSE disconnects
+let fallbackInterval: number | null = null
 
 onMounted(() => {
   fetchFiles()
-  startRefreshInterval()
+  fallbackInterval = window.setInterval(() => fetchFiles(false), 30000)
 })
 
 onUnmounted(() => {
-  if (refreshInterval) clearInterval(refreshInterval)
+  if (fallbackInterval) clearInterval(fallbackInterval)
 })
 </script>
 
@@ -262,6 +271,15 @@ onUnmounted(() => {
               >
                 {{ file.status }}
               </span>
+              <DownloadProgressBar
+                v-if="file.status === 'downloading' && downloadProgressMap.get(file.id)"
+                :bytes-written="downloadProgressMap.get(file.id)!.bytesWritten"
+                :total-bytes="downloadProgressMap.get(file.id)!.totalBytes"
+                :speed="downloadProgressMap.get(file.id)!.speed"
+                :started-at="downloadProgressMap.get(file.id)!.startedAt"
+                :compact="true"
+                class="mt-1"
+              />
               <div
                 v-if="file.status === 'failed' && file.errorMessage"
                 class="text-xs text-red-600 mt-1 cursor-help"
@@ -291,6 +309,13 @@ onUnmounted(() => {
                 class="text-sm text-red-600 hover:text-red-800"
               >
                 Delete
+              </button>
+              <button
+                v-if="file.status === 'failed' || file.status === 'cancelled'"
+                @click="resetFile(file.id)"
+                class="text-sm text-gray-600 hover:text-gray-800"
+              >
+                Reset
               </button>
               <button
                 v-if="file.status !== 'downloaded'"

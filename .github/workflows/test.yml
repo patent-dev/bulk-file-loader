@@ -15,7 +15,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.25'
+          go-version: '1.26'
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -23,7 +23,7 @@ jobs:
           node-version: '20'
 
       - name: Install oapi-codegen
-        run: go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.5.1
+        run: go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.6.0
 
       - name: Generate API code
         run: oapi-codegen -config api/oapi-codegen.yaml api/openapi.yaml

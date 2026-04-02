@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 
 interface Source {
   id: string
@@ -25,6 +25,21 @@ const credentials = ref<Record<string, string>>({})
 const testing = ref(false)
 const saving = ref(false)
 const testResult = ref<{ success: boolean; message: string } | null>(null)
+
+function onKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape' && showConfig.value) {
+    showConfig.value = false
+  }
+}
+
+function disableSource() {
+  if (window.confirm('Disable this source? Active downloads will be cancelled.')) {
+    saveConfig(false)
+  }
+}
+
+onMounted(() => document.addEventListener('keydown', onKeydown))
+onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 
 async function testCredentials() {
   testing.value = true
@@ -122,9 +137,15 @@ async function saveConfig(enabled: boolean) {
         @click="showConfig = false"
       >
         <div
-          class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md"
+          class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md relative"
           @click.stop
         >
+          <button
+            @click="showConfig = false"
+            class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-xl leading-none"
+          >
+            &times;
+          </button>
           <h3 class="text-lg font-medium mb-4">Configure {{ source.name }}</h3>
 
           <form @submit.prevent="saveConfig(true)" class="space-y-4">
@@ -160,9 +181,9 @@ async function saveConfig(enabled: boolean) {
                 <button
                   v-if="source.enabled"
                   type="button"
-                  @click="saveConfig(false)"
+                  @click="disableSource"
                   :disabled="saving"
-                  class="px-4 py-2 text-sm text-gray-600 hover:text-gray-800"
+                  class="px-4 py-2 text-sm text-red-600 hover:text-red-800"
                 >
                   Disable
                 </button>
@@ -176,13 +197,6 @@ async function saveConfig(enabled: boolean) {
               </div>
             </div>
           </form>
-
-          <button
-            @click="showConfig = false"
-            class="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
-          >
-            &times;
-          </button>
         </div>
       </div>
     </Teleport>

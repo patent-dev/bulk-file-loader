@@ -102,6 +102,7 @@ func (d *Downloader) Download(ctx context.Context, fileID string) error {
 	if err := d.db.Create(entry).Error; err != nil {
 		return fmt.Errorf("failed to create download entry: %w", err)
 	}
+	d.progress.IncrementStatusVersion()
 
 	// Emit download started event
 	d.emitEvent(hooks.EventDownloadStarted, &file, nil)
@@ -181,6 +182,7 @@ func (d *Downloader) Download(ctx context.Context, fileID string) error {
 	if err := d.db.Save(entry).Error; err != nil {
 		slog.Error("Failed to update download entry", "error", err)
 	}
+	d.progress.IncrementStatusVersion()
 
 	d.emitCompletedEvent(&file, downloadPath, localChecksum, nil)
 
@@ -217,9 +219,20 @@ func (d *Downloader) ActiveDownloads() []DownloadProgress {
 	return d.progress.GetAll()
 }
 
+// IsActive returns true if a download is currently in progress for the given file.
+func (d *Downloader) IsActive(fileID string) bool {
+	_, ok := d.active.Load(fileID)
+	return ok
+}
+
 // GetProgress returns progress for a specific download
 func (d *Downloader) GetProgress(fileID string) *DownloadProgress {
 	return d.progress.Get(fileID)
+}
+
+// StatusVersion returns a counter that increments on every download status change.
+func (d *Downloader) StatusVersion() uint64 {
+	return d.progress.StatusVersion()
 }
 
 func (d *Downloader) getDownloadPath(file *database.File) string {
@@ -236,6 +249,7 @@ func (d *Downloader) handleError(entry *database.DownloadEntry, file *database.F
 	entry.Status = database.DownloadStatusFailed
 	entry.ErrorMessage = fmt.Sprintf("%s: %v", message, err)
 	d.db.Save(entry)
+	d.progress.IncrementStatusVersion()
 
 	event := hooks.NewEvent(hooks.EventDownloadFailed, file.SourceID).
 		WithFile(file.ID, file.FileName, file.FileSize, "", "").
@@ -248,6 +262,7 @@ func (d *Downloader) handleError(entry *database.DownloadEntry, file *database.F
 func (d *Downloader) handleCancelled(entry *database.DownloadEntry, file *database.File) error {
 	entry.Status = database.DownloadStatusCancelled
 	d.db.Save(entry)
+	d.progress.IncrementStatusVersion()
 
 	event := hooks.NewEvent(hooks.EventDownloadCancelled, file.SourceID).
 		WithFile(file.ID, file.FileName, file.FileSize, "", "")
