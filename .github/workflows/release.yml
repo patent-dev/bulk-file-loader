@@ -12,6 +12,7 @@ permissions:
 jobs:
   build:
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
@@ -22,7 +23,6 @@ jobs:
             goos: linux
             goarch: arm64
             suffix: ''
-            cc: aarch64-linux-gnu-gcc
           - os: macos-latest
             goos: darwin
             goarch: amd64
@@ -55,6 +55,7 @@ jobs:
         run: go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.6.0
 
       - name: Generate API code
+        shell: bash
         run: |
           oapi-codegen -config api/oapi-codegen.yaml api/openapi.yaml
           mkdir -p api/client
@@ -66,19 +67,13 @@ jobs:
           npm ci
           npm run build
 
-      - name: Install cross-compiler
-        if: matrix.cc != ''
-        run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
-
       - name: Build binary
         env:
-          CGO_ENABLED: 1
+          CGO_ENABLED: '0'
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
-          CC: ${{ matrix.cc || 'gcc' }}
-        run: |
-          VERSION=${GITHUB_REF_NAME}
-          go build -ldflags="-s -w -X github.com/patent-dev/bulk-file-loader/cmd/bulk-file-loader.Version=${VERSION}" -o bulk-file-loader-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.suffix }} .
+        shell: bash
+        run: go build -ldflags="-s -w -X github.com/patent-dev/bulk-file-loader/cmd/bulk-file-loader.Version=${{ github.ref_name }}" -o "bulk-file-loader-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.suffix }}" .
 
       - name: Create archive (Unix)
         if: matrix.goos != 'windows'

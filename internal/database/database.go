@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"log/slog"
 
+	_ "github.com/ncruces/go-sqlite3/embed"
+	"github.com/ncruces/go-sqlite3/gormlite"
 	"github.com/patent-dev/bulk-file-loader/config"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
@@ -21,8 +22,8 @@ func New(cfg *config.Config) (*DB, error) {
 
 	switch cfg.DBDriver {
 	case "sqlite":
-		dsn := cfg.DatabasePath() + "?_journal_mode=WAL&_busy_timeout=5000"
-		dialector = sqlite.Open(dsn)
+		dsn := "file:" + cfg.DatabasePath() + "?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)"
+		dialector = gormlite.Open(dsn)
 	case "postgres":
 		if cfg.DBDSN == "" {
 			return nil, fmt.Errorf("BULK_LOADER_DB_DSN is required for postgres")

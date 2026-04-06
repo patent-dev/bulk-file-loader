@@ -5,9 +5,9 @@ import (
 	"io"
 	"testing"
 
+	"github.com/ncruces/go-sqlite3/gormlite"
 	"github.com/patent-dev/bulk-file-loader/config"
 	"github.com/patent-dev/bulk-file-loader/internal/database"
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
@@ -49,7 +49,7 @@ func (m *mockAdapter) DownloadFile(context.Context, FileInfo, io.Writer, Progres
 
 func setupTestDB(t *testing.T) *database.DB {
 	t.Helper()
-	gormDB, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{
+	gormDB, err := gorm.Open(gormlite.Open(":memory:"), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Silent),
 	})
 	if err != nil {

@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ncruces/go-sqlite3/gormlite"
 	"github.com/patent-dev/bulk-file-loader/api/generated"
 	"github.com/patent-dev/bulk-file-loader/config"
 	"github.com/patent-dev/bulk-file-loader/internal/auth"
@@ -19,7 +20,6 @@ import (
 	"github.com/patent-dev/bulk-file-loader/internal/scheduler"
 	"github.com/patent-dev/bulk-file-loader/internal/service"
 	"github.com/patent-dev/bulk-file-loader/internal/sources"
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
@@ -51,7 +51,7 @@ func (m *mockAdapter) DownloadFile(ctx context.Context, file sources.FileInfo, w
 func setupTestHandler(t *testing.T) (*Handler, *database.DB) {
 	t.Helper()
 
-	gormDB, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{
+	gormDB, err := gorm.Open(gormlite.Open(":memory:"), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Silent),
 	})
 	if err != nil {

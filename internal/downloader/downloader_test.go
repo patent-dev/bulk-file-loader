@@ -8,11 +8,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ncruces/go-sqlite3/gormlite"
 	"github.com/patent-dev/bulk-file-loader/config"
 	"github.com/patent-dev/bulk-file-loader/internal/database"
 	"github.com/patent-dev/bulk-file-loader/internal/hooks"
 	"github.com/patent-dev/bulk-file-loader/internal/sources"
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
@@ -49,7 +49,7 @@ func setupTestEnv(t *testing.T) (*database.DB, *sources.Registry, *hooks.Manager
 	t.Helper()
 
 	dbPath := filepath.Join(t.TempDir(), "test.db")
-	gormDB, err := gorm.Open(sqlite.Open(dbPath+"?_journal_mode=WAL&_busy_timeout=5000"), &gorm.Config{
+	gormDB, err := gorm.Open(gormlite.Open(dbPath+"?_journal_mode=WAL&_busy_timeout=5000"), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Silent),
 	})
 	if err != nil {

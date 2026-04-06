@@ -4,6 +4,8 @@ go 1.26.0
 
 require (
 	github.com/getkin/kin-openapi v0.133.0
+	github.com/ncruces/go-sqlite3 v0.30.2
+	github.com/ncruces/go-sqlite3/gormlite v0.30.2
 	github.com/oapi-codegen/runtime v1.2.0
 	github.com/patent-dev/dpma-connect-plus v0.2.2
 	github.com/patent-dev/epo-bdds v0.1.0
@@ -14,8 +16,7 @@ require (
 	golang.org/x/term v0.41.0
 	gorm.io/driver/mysql v1.5.7
 	gorm.io/driver/postgres v1.5.11
-	gorm.io/driver/sqlite v1.5.7
-	gorm.io/gorm v1.25.12
+	gorm.io/gorm v1.31.1
 )
 
 require (
@@ -33,12 +34,13 @@ require (
 	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
-	github.com/mattn/go-sqlite3 v1.14.22 // indirect
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
+	github.com/ncruces/julianday v1.0.0 // indirect
 	github.com/oasdiff/yaml v0.0.0-20250309154309-f31be36b4037 // indirect
 	github.com/oasdiff/yaml3 v0.0.0-20250309153720-d2182401db90 // indirect
 	github.com/perimeterx/marshmallow v1.1.5 // indirect
 	github.com/spf13/pflag v1.0.9 // indirect
+	github.com/tetratelabs/wazero v1.10.1 // indirect
 	github.com/woodsbury/decimal128 v1.3.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
 	golang.org/x/sys v0.42.0 // indirect

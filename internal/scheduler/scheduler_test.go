@@ -6,16 +6,16 @@ import (
 
 	"github.com/robfig/cron/v3"
 
+	"github.com/ncruces/go-sqlite3/gormlite"
 	"github.com/patent-dev/bulk-file-loader/internal/database"
 	"github.com/patent-dev/bulk-file-loader/internal/hooks"
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
 
 func setupTestDB(t *testing.T) *database.DB {
 	t.Helper()
-	gormDB, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{
+	gormDB, err := gorm.Open(gormlite.Open(":memory:"), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Silent),
 	})
 	if err != nil {

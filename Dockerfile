@@ -10,7 +10,7 @@ RUN npm run build
 # Build backend
 FROM golang:1.26-alpine AS backend-builder
 
-RUN apk add --no-cache git gcc musl-dev
+RUN apk add --no-cache git
 
 WORKDIR /app
 
@@ -33,7 +33,7 @@ RUN oapi-codegen -config api/oapi-codegen.yaml api/openapi.yaml && \
 COPY --from=frontend-builder /app/web/ui/dist ./web/ui/dist
 
 ARG VERSION=dev
-RUN CGO_ENABLED=1 GOOS=linux go build -ldflags="-s -w -X github.com/patent-dev/bulk-file-loader/cmd/bulk-file-loader.Version=${VERSION}" -o bulk-file-loader .
+RUN CGO_ENABLED=0 go build -ldflags="-s -w -X github.com/patent-dev/bulk-file-loader/cmd/bulk-file-loader.Version=${VERSION}" -o bulk-file-loader .
 
 # Runtime image
 FROM alpine:3.21
