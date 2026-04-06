@@ -7,8 +7,8 @@ Automated bulk data download manager for patent data from EPO, USPTO, and DPMA.
 ## Features
 
 - Download bulk patent data from EPO BDDS, USPTO ODP, and DPMA Connect Plus
-- Web UI for configuration and monitoring
 - CLI for scripting, cron jobs, and data pipeline integration
+- Web UI for configuration and monitoring
 - Automatic scheduled downloads with retry
 - Webhook notifications
 - Multi-database support (SQLite, PostgreSQL, MySQL)
