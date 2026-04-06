@@ -17,6 +17,7 @@ import (
 	"github.com/patent-dev/bulk-file-loader/internal/downloader"
 	"github.com/patent-dev/bulk-file-loader/internal/hooks"
 	"github.com/patent-dev/bulk-file-loader/internal/scheduler"
+	"github.com/patent-dev/bulk-file-loader/internal/service"
 	"github.com/patent-dev/bulk-file-loader/internal/sources"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -80,10 +81,11 @@ func setupTestHandler(t *testing.T) (*Handler, *database.DB) {
 	dl := downloader.New(db, registry, hooksManager, cfg)
 	sched := scheduler.New(db, registry, dl, hooksManager)
 
-	// Register mock adapter
 	registry.Register(&mockAdapter{id: "mock", name: "Mock Source"})
 
-	handler := New(db, authService, registry, dl, sched, hooksManager)
+	svc := service.New(db, authService, registry, dl, sched, hooksManager, "test")
+
+	handler := New(svc)
 	return handler, db
 }
 

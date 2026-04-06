@@ -25,25 +25,27 @@ RUN go mod download
 COPY . .
 
 # Generate API code
-RUN oapi-codegen -config api/oapi-codegen.yaml api/openapi.yaml
+RUN oapi-codegen -config api/oapi-codegen.yaml api/openapi.yaml && \
+    mkdir -p api/client && \
+    oapi-codegen -config api/oapi-client.yaml api/openapi.yaml
 
 # Copy built frontend
 COPY --from=frontend-builder /app/web/ui/dist ./web/ui/dist
 
-# Build
-RUN CGO_ENABLED=1 GOOS=linux go build -ldflags="-s -w" -o bulk-file-loader .
+ARG VERSION=dev
+RUN CGO_ENABLED=1 GOOS=linux go build -ldflags="-s -w -X github.com/patent-dev/bulk-file-loader/cmd/bulk-file-loader.Version=${VERSION}" -o bulk-file-loader .
 
 # Runtime image
-FROM alpine:3.19
+FROM alpine:3.21
 
-RUN apk add --no-cache ca-certificates tzdata
+RUN apk add --no-cache ca-certificates tzdata && \
+    addgroup -S appgroup && adduser -S appuser -G appgroup
 
 WORKDIR /app
 
 COPY --from=backend-builder /app/bulk-file-loader .
 
-# Create data directory
-RUN mkdir -p /app/data
+RUN mkdir -p /app/data && chown appuser:appgroup /app/data
 
 ENV BULK_LOADER_DATA_DIR=/app/data
 ENV BULK_LOADER_PORT=8080
@@ -52,4 +54,6 @@ EXPOSE 8080
 
 VOLUME ["/app/data"]
 
-ENTRYPOINT ["./bulk-file-loader"]
+USER appuser
+
+ENTRYPOINT ["./bulk-file-loader", "serve"]

@@ -1,5 +1,5 @@
 # Binaries
-bulk-file-loader
+/bulk-file-loader
 *.exe
 *.dll
 *.so
@@ -32,7 +32,11 @@ web/ui/dist/
 
 # Generated
 api/generated/
+api/client/
 
 # Environment
 .env
 .env.local
+
+# Notes
+notes/

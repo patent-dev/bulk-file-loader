@@ -26,7 +26,10 @@ jobs:
         run: go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.6.0
 
       - name: Generate API code
-        run: oapi-codegen -config api/oapi-codegen.yaml api/openapi.yaml
+        run: |
+          oapi-codegen -config api/oapi-codegen.yaml api/openapi.yaml
+          mkdir -p api/client
+          oapi-codegen -config api/oapi-client.yaml api/openapi.yaml
 
       - name: Build frontend
         run: |

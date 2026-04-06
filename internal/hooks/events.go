@@ -13,7 +13,6 @@ const (
 	EventSyncFailed        = "sync.failed"
 )
 
-// Event represents a hook event
 type Event struct {
 	Type      string    `json:"event"`
 	Timestamp time.Time `json:"timestamp"`
@@ -25,19 +24,16 @@ type Event struct {
 	Error     *Error    `json:"error,omitempty"`
 }
 
-// Product info for event payload
 type Product struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
 }
 
-// Delivery info for event payload
 type Delivery struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
 }
 
-// File info for event payload
 type File struct {
 	ID       string `json:"id"`
 	Name     string `json:"name"`
@@ -46,20 +42,17 @@ type File struct {
 	Path     string `json:"path,omitempty"`
 }
 
-// Alert represents an alert in the event payload
 type Alert struct {
 	Type     string `json:"type"`
 	Message  string `json:"message"`
 	Severity string `json:"severity"` // "info", "warning", "error"
 }
 
-// Error represents an error in the event payload
 type Error struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
 }
 
-// NewEvent creates a new event with the current timestamp
 func NewEvent(eventType, source string) *Event {
 	return &Event{
 		Type:      eventType,
@@ -69,19 +62,16 @@ func NewEvent(eventType, source string) *Event {
 	}
 }
 
-// WithProduct sets the product info
 func (e *Event) WithProduct(id, name string) *Event {
 	e.Product = &Product{ID: id, Name: name}
 	return e
 }
 
-// WithDelivery sets the delivery info
 func (e *Event) WithDelivery(id, name string) *Event {
 	e.Delivery = &Delivery{ID: id, Name: name}
 	return e
 }
 
-// WithFile sets the file info
 func (e *Event) WithFile(id, name string, size int64, checksum, path string) *Event {
 	e.File = &File{
 		ID:       id,
@@ -93,7 +83,6 @@ func (e *Event) WithFile(id, name string, size int64, checksum, path string) *Ev
 	return e
 }
 
-// WithAlert adds an alert
 func (e *Event) WithAlert(alertType, message, severity string) *Event {
 	e.Alerts = append(e.Alerts, Alert{
 		Type:     alertType,
@@ -103,7 +92,6 @@ func (e *Event) WithAlert(alertType, message, severity string) *Event {
 	return e
 }
 
-// WithError sets the error info
 func (e *Event) WithError(code, message string) *Event {
 	e.Error = &Error{Code: code, Message: message}
 	return e

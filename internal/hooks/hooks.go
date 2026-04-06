@@ -15,6 +15,7 @@ import (
 type Manager struct {
 	db         *database.DB
 	httpClient *http.Client
+	disabled   bool
 }
 
 func New(db *database.DB) *Manager {
@@ -24,7 +25,14 @@ func New(db *database.DB) *Manager {
 	}
 }
 
+func (m *Manager) SetDisabled(disabled bool) {
+	m.disabled = disabled
+}
+
 func (m *Manager) Emit(ctx context.Context, event *Event) {
+	if m.disabled {
+		return
+	}
 	webhooks, err := m.getWebhooksForEvent(event.Type)
 	if err != nil {
 		slog.Error("Failed to get webhooks", "error", err)

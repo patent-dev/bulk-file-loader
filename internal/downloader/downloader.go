@@ -25,13 +25,11 @@ var (
 	ErrSourceNotFound     = errors.New("source not found")
 )
 
-// activeDownload tracks a running download for cancellation
 type activeDownload struct {
 	cancel    context.CancelFunc
 	productID string
 }
 
-// Downloader manages file downloads
 type Downloader struct {
 	db       *database.DB
 	registry *sources.Registry
@@ -43,7 +41,6 @@ type Downloader struct {
 	active    sync.Map // fileID -> *activeDownload
 }
 
-// New creates a new downloader
 func New(db *database.DB, registry *sources.Registry, hooks *hooks.Manager, cfg *config.Config) *Downloader {
 	return &Downloader{
 		db:        db,
@@ -55,29 +52,25 @@ func New(db *database.DB, registry *sources.Registry, hooks *hooks.Manager, cfg 
 	}
 }
 
-// Download starts downloading a file
 func (d *Downloader) Download(ctx context.Context, fileID string) error {
-	// Check if already downloading
-	if _, exists := d.active.Load(fileID); exists {
+	if _, loaded := d.active.LoadOrStore(fileID, &activeDownload{}); loaded {
 		return ErrDownloadInProgress
 	}
 
-	// Get file from database
 	var file database.File
 	if err := d.db.Preload("Delivery.Product").First(&file, "id = ?", fileID).Error; err != nil {
+		d.active.Delete(fileID)
 		return ErrFileNotFound
 	}
 
-	// Get source adapter
 	adapter, ok := d.registry.Get(file.SourceID)
 	if !ok {
+		d.active.Delete(fileID)
 		return ErrSourceNotFound
 	}
 
-	// Create cancellable context
 	ctx, cancel := context.WithTimeout(ctx, time.Duration(d.cfg.DownloadTimeout)*time.Second)
 
-	// Store active download for cancellation
 	d.active.Store(fileID, &activeDownload{cancel: cancel, productID: file.ProductID})
 	defer func() {
 		d.active.Delete(fileID)
@@ -170,10 +163,18 @@ func (d *Downloader) Download(ctx context.Context, fileID string) error {
 		return d.handleError(entry, &file, "FILESYSTEM_ERROR", "Failed to move file", err)
 	}
 
-	// Calculate checksum
 	localChecksum := "sha256:" + hex.EncodeToString(hasher.Sum(nil))
 
-	// Update download entry
+	var checksumAlerts []hooks.Alert
+	if file.ExpectedChecksum != "" && localChecksum != file.ExpectedChecksum {
+		slog.Warn("Checksum mismatch", "fileID", fileID, "expected", file.ExpectedChecksum, "got", localChecksum)
+		checksumAlerts = append(checksumAlerts, hooks.Alert{
+			Type:     "checksum_mismatch",
+			Message:  fmt.Sprintf("expected %s, got %s", file.ExpectedChecksum, localChecksum),
+			Severity: "warning",
+		})
+		d.emitEvent(hooks.EventChecksumMismatch, &file, checksumAlerts)
+	}
 	completedAt := time.Now()
 	entry.Status = database.DownloadStatusCompleted
 	entry.LocalPath = downloadPath
@@ -190,7 +191,6 @@ func (d *Downloader) Download(ctx context.Context, fileID string) error {
 	return nil
 }
 
-// Cancel cancels an in-progress download
 func (d *Downloader) Cancel(fileID string) error {
 	if val, ok := d.active.Load(fileID); ok {
 		val.(*activeDownload).cancel()
@@ -199,8 +199,6 @@ func (d *Downloader) Cancel(fileID string) error {
 	return ErrFileNotFound
 }
 
-// CancelByProduct cancels all in-progress downloads for a product.
-// Returns the number of downloads cancelled.
 func (d *Downloader) CancelByProduct(productID string) int {
 	var cancelled int
 	d.active.Range(func(key, value any) bool {
@@ -214,23 +212,23 @@ func (d *Downloader) CancelByProduct(productID string) int {
 	return cancelled
 }
 
-// ActiveDownloads returns progress for all active downloads
 func (d *Downloader) ActiveDownloads() []DownloadProgress {
 	return d.progress.GetAll()
 }
 
-// IsActive returns true if a download is currently in progress for the given file.
+func (d *Downloader) MaxConcurrent() int {
+	return cap(d.semaphore)
+}
+
 func (d *Downloader) IsActive(fileID string) bool {
 	_, ok := d.active.Load(fileID)
 	return ok
 }
 
-// GetProgress returns progress for a specific download
 func (d *Downloader) GetProgress(fileID string) *DownloadProgress {
 	return d.progress.Get(fileID)
 }
 
-// StatusVersion returns a counter that increments on every download status change.
 func (d *Downloader) StatusVersion() uint64 {
 	return d.progress.StatusVersion()
 }

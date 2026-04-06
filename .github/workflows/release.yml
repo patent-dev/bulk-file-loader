@@ -22,6 +22,7 @@ jobs:
             goos: linux
             goarch: arm64
             suffix: ''
+            cc: aarch64-linux-gnu-gcc
           - os: macos-latest
             goos: darwin
             goarch: amd64
@@ -54,7 +55,10 @@ jobs:
         run: go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.6.0
 
       - name: Generate API code
-        run: oapi-codegen -config api/oapi-codegen.yaml api/openapi.yaml
+        run: |
+          oapi-codegen -config api/oapi-codegen.yaml api/openapi.yaml
+          mkdir -p api/client
+          oapi-codegen -config api/oapi-client.yaml api/openapi.yaml
 
       - name: Build frontend
         run: |
@@ -62,13 +66,19 @@ jobs:
           npm ci
           npm run build
 
+      - name: Install cross-compiler
+        if: matrix.cc != ''
+        run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
+
       - name: Build binary
         env:
-          CGO_ENABLED: ${{ matrix.goos == 'linux' && matrix.goarch == 'amd64' && '1' || '0' }}
+          CGO_ENABLED: 1
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
+          CC: ${{ matrix.cc || 'gcc' }}
         run: |
-          go build -ldflags="-s -w" -o bulk-file-loader-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.suffix }} .
+          VERSION=${GITHUB_REF_NAME}
+          go build -ldflags="-s -w -X github.com/patent-dev/bulk-file-loader/cmd/bulk-file-loader.Version=${VERSION}" -o bulk-file-loader-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.suffix }} .
 
       - name: Create archive (Unix)
         if: matrix.goos != 'windows'
@@ -127,6 +137,7 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           platforms: linux/amd64,linux/arm64
+          build-args: VERSION=${{ github.ref_name }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -140,7 +151,7 @@ jobs:
           path: artifacts
 
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: artifacts/**/*
           generate_release_notes: true
