@@ -143,8 +143,7 @@ func TestGetNextRun(t *testing.T) {
 	nextRun := scheduler.GetNextRun(product.ID)
 	if nextRun == nil {
 		t.Fatal("GetNextRun should return a time")
-	}
-	if nextRun.Before(time.Now()) {
+	} else if nextRun.Before(time.Now()) {
 		t.Error("Next run should be in the future")
 	}
 }

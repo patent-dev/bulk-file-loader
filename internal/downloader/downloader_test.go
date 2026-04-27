@@ -80,9 +80,6 @@ func TestNew(t *testing.T) {
 	db, registry, hooksManager, cfg := setupTestEnv(t)
 
 	downloader := New(db, registry, hooksManager, cfg)
-	if downloader == nil {
-		t.Fatal("New() returned nil")
-	}
 	if cap(downloader.semaphore) != cfg.MaxConcurrent {
 		t.Errorf("semaphore capacity = %d, want %d", cap(downloader.semaphore), cfg.MaxConcurrent)
 	}

@@ -40,6 +40,12 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.DevMode {
 		t.Error("DevMode should be false by default")
 	}
+	if cfg.InsecureCookie {
+		t.Error("InsecureCookie should be false by default")
+	}
+	if len(cfg.TrustedProxies) != 0 {
+		t.Errorf("TrustedProxies should be empty by default, got %d", len(cfg.TrustedProxies))
+	}
 }
 
 func TestLoadFromEnv(t *testing.T) {
@@ -54,6 +60,7 @@ func TestLoadFromEnv(t *testing.T) {
 	t.Setenv("BULK_LOADER_DOWNLOAD_TIMEOUT", "7200")
 	t.Setenv("BULK_LOADER_DEV_MODE", "true")
 	t.Setenv("BULK_LOADER_VITE_PROXY", "http://localhost:5173")
+	t.Setenv("BULK_LOADER_INSECURE_COOKIE", "true")
 
 	cfg, err := Load()
 	if err != nil {
@@ -83,6 +90,9 @@ func TestLoadFromEnv(t *testing.T) {
 	}
 	if cfg.ViteProxy != "http://localhost:5173" {
 		t.Errorf("ViteProxy = %q, want http://localhost:5173", cfg.ViteProxy)
+	}
+	if !cfg.InsecureCookie {
+		t.Error("InsecureCookie should be true")
 	}
 }
 
@@ -114,6 +124,47 @@ func TestDownloadsPath(t *testing.T) {
 	expected := filepath.Join("/var/data", "downloads")
 	if cfg.DownloadsPath() != expected {
 		t.Errorf("DownloadsPath() = %q, want %q", cfg.DownloadsPath(), expected)
+	}
+}
+
+func TestLoadTrustedProxies(t *testing.T) {
+	t.Setenv("BULK_LOADER_DATA_DIR", t.TempDir())
+	t.Setenv("BULK_LOADER_TRUSTED_PROXIES", "127.0.0.1, 10.0.0.0/8 ,::1,2001:db8::/32")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := len(cfg.TrustedProxies), 4; got != want {
+		t.Fatalf("TrustedProxies len = %d, want %d", got, want)
+	}
+
+	cases := []struct {
+		addr string
+		want bool
+	}{
+		{"127.0.0.1:9999", true},
+		{"10.5.5.5:80", true},
+		{"[::1]:80", true},
+		{"[2001:db8::1]:443", true},
+		{"8.8.8.8:80", false},
+		{"172.16.0.1:80", false},
+		{"notanip:80", false},
+		{"", false},
+	}
+	for _, c := range cases {
+		if got := cfg.IsTrustedProxy(c.addr); got != c.want {
+			t.Errorf("IsTrustedProxy(%q) = %v, want %v", c.addr, got, c.want)
+		}
+	}
+}
+
+func TestLoadTrustedProxiesInvalid(t *testing.T) {
+	t.Setenv("BULK_LOADER_DATA_DIR", t.TempDir())
+	t.Setenv("BULK_LOADER_TRUSTED_PROXIES", "not-an-ip")
+
+	if _, err := Load(); err == nil {
+		t.Fatal("expected error for invalid trusted proxy entry, got nil")
 	}
 }
 

@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/patent-dev/bulk-file-loader/config"
@@ -36,8 +37,27 @@ type Service struct {
 	credentialsReadyCalled bool
 }
 
-func (s *Service) cookieSecure() bool {
+func (s *Service) cookieSecure(r *http.Request) bool {
+	if s.cfg.InsecureCookie {
+		return false
+	}
+	if r.TLS != nil {
+		return true
+	}
+	if s.cfg.IsTrustedProxy(r.RemoteAddr) {
+		if proto := forwardedProto(r); proto != "" {
+			return proto == "https"
+		}
+	}
 	return !s.cfg.DevMode
+}
+
+func forwardedProto(r *http.Request) string {
+	h := r.Header.Get("X-Forwarded-Proto")
+	if i := strings.IndexByte(h, ','); i >= 0 {
+		h = h[:i]
+	}
+	return strings.ToLower(strings.TrimSpace(h))
 }
 
 func (s *Service) OnCredentialsReady(callback func()) {
@@ -168,7 +188,7 @@ func (s *Service) Validate(passphrase string) bool {
 	return VerifyPassphrase(passphrase, salt, storedHash)
 }
 
-func (s *Service) Login(w http.ResponseWriter, passphrase string) error {
+func (s *Service) Login(w http.ResponseWriter, r *http.Request, passphrase string) error {
 	if !s.Validate(passphrase) {
 		return ErrInvalidPassword
 	}
@@ -177,20 +197,20 @@ func (s *Service) Login(w http.ResponseWriter, passphrase string) error {
 		Value:    base64.StdEncoding.EncodeToString([]byte(passphrase)),
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   s.cookieSecure(),
+		Secure:   s.cookieSecure(r),
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   cookieMaxAge,
 	})
 	return nil
 }
 
-func (s *Service) Logout(w http.ResponseWriter) {
+func (s *Service) Logout(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     cookieName,
 		Value:    "",
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   s.cookieSecure(),
+		Secure:   s.cookieSecure(r),
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   -1,
 		Expires:  time.Unix(0, 0),

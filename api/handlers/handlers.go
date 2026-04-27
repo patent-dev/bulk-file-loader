@@ -71,8 +71,7 @@ func (h *Handler) SetupAuth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Auto-login after setup
-	_ = h.svc.Auth.Login(w, req.Passphrase)
+	_ = h.svc.Auth.Login(w, r, req.Passphrase)
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -83,7 +82,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.svc.Auth.Login(w, req.Passphrase); err != nil {
+	if err := h.svc.Auth.Login(w, r, req.Passphrase); err != nil {
 		writeError(w, http.StatusUnauthorized, "Invalid passphrase")
 		return
 	}
@@ -92,7 +91,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
-	h.svc.Auth.Logout(w)
+	h.svc.Auth.Logout(w, r)
 	w.WriteHeader(http.StatusOK)
 }
 

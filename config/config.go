@@ -2,9 +2,11 @@ package config
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 )
 
 type Config struct {
@@ -17,9 +19,16 @@ type Config struct {
 	DownloadTimeout int
 	DevMode         bool
 	ViteProxy       string
+	TrustedProxies  []*net.IPNet
+	InsecureCookie  bool
 }
 
 func Load() (*Config, error) {
+	trusted, err := parseTrustedProxies(os.Getenv("BULK_LOADER_TRUSTED_PROXIES"))
+	if err != nil {
+		return nil, fmt.Errorf("parse BULK_LOADER_TRUSTED_PROXIES: %w", err)
+	}
+
 	cfg := &Config{
 		Passphrase:      os.Getenv("BULK_LOADER_PASSPHRASE"),
 		DBDriver:        getEnvOrDefault("BULK_LOADER_DB_DRIVER", "sqlite"),
@@ -30,6 +39,8 @@ func Load() (*Config, error) {
 		DownloadTimeout: getEnvIntOrDefault("BULK_LOADER_DOWNLOAD_TIMEOUT", 3600),
 		DevMode:         os.Getenv("BULK_LOADER_DEV_MODE") == "true",
 		ViteProxy:       os.Getenv("BULK_LOADER_VITE_PROXY"),
+		TrustedProxies:  trusted,
+		InsecureCookie:  os.Getenv("BULK_LOADER_INSECURE_COOKIE") == "true",
 	}
 
 	if err := os.MkdirAll(cfg.DataDir, 0755); err != nil {
@@ -41,6 +52,44 @@ func Load() (*Config, error) {
 	}
 
 	return cfg, nil
+}
+
+func parseTrustedProxies(raw string) ([]*net.IPNet, error) {
+	var nets []*net.IPNet
+	for entry := range strings.SplitSeq(raw, ",") {
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
+			continue
+		}
+		cidr := entry
+		if !strings.Contains(cidr, "/") {
+			if strings.Contains(cidr, ":") {
+				cidr += "/128"
+			} else {
+				cidr += "/32"
+			}
+		}
+		_, ipNet, err := net.ParseCIDR(cidr)
+		if err != nil {
+			return nil, fmt.Errorf("invalid trusted proxy entry %q", entry)
+		}
+		nets = append(nets, ipNet)
+	}
+	return nets, nil
+}
+
+func (c *Config) IsTrustedProxy(remoteAddr string) bool {
+	host, _, err := net.SplitHostPort(remoteAddr)
+	if err != nil {
+		return false
+	}
+	ip := net.ParseIP(host)
+	for _, n := range c.TrustedProxies {
+		if n.Contains(ip) {
+			return true
+		}
+	}
+	return false
 }
 
 func (c *Config) DatabasePath() string {

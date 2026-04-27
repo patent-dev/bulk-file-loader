@@ -1,5 +1,8 @@
 # Bulk File Loader
 
+- Source: [github.com/patent-dev/bulk-file-loader](https://github.com/patent-dev/bulk-file-loader)
+- Docker: [hub.docker.com/r/patentdev/bulk-file-loader](https://hub.docker.com/r/patentdev/bulk-file-loader)
+
 Automated bulk data download manager for patent data from EPO, USPTO, and DPMA.
 
 ![Screenshot](screenshots/overview.png)
@@ -64,6 +67,22 @@ Environment variables:
 | `BULK_LOADER_DOWNLOAD_TIMEOUT` | 3600 | Per-file download timeout in seconds |
 | `BULK_LOADER_MAX_CONCURRENT` | 3 | Maximum concurrent downloads |
 | `BULK_LOADER_DEV_MODE` | false | Debug logging, verbose SQL, non-secure cookies, Vite proxy (do not use in production) |
+| `BULK_LOADER_TRUSTED_PROXIES` | - | Comma-separated IPs/CIDRs whose `X-Forwarded-Proto` is honored when setting the cookie `Secure` flag |
+| `BULK_LOADER_INSECURE_COOKIE` | false | Drop the `Secure` cookie flag. For HTTP-only LAN use; never on the public internet |
+
+### Behind a reverse proxy
+
+Set `BULK_LOADER_TRUSTED_PROXIES` to the IPs or CIDRs the proxy connects from; the cookie `Secure` flag then follows `X-Forwarded-Proto` from those peers and ignores it from anyone else.
+
+```
+docker run -p 8080:8080 \
+  -e BULK_LOADER_TRUSTED_PROXIES=10.0.0.0/8,127.0.0.1 \
+  -v ./data:/app/data patentdev/bulk-file-loader serve
+```
+
+### HTTP-only LAN
+
+For a LAN-only deployment without TLS, set `BULK_LOADER_INSECURE_COOKIE=true` so browsers accept the session cookie over plain HTTP.
 
 ## Related Projects
 
