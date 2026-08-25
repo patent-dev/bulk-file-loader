@@ -279,7 +279,7 @@ func (a *Adapter) getClient() (*odp.Client, error) {
 
 	cfg := odp.DefaultConfig()
 	cfg.APIKey = apiKey
-	cfg.Timeout = timeout
+	cfg.Timeout = time.Duration(timeout) * time.Second
 
 	client, err := odp.NewClient(cfg)
 	if err != nil {

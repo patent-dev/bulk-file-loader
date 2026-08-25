@@ -34,6 +34,8 @@ func (a *Adapter) resolveEdition(ctx context.Context, d *dataset) (string, time.
 	case discoverTokenFetch:
 		edition, err := a.resolveTokenEdition(mctx, d.Discover.Token)
 		return edition, time.Time{}, err
+	case discoverIndexListing:
+		return a.resolveByIndexListing(mctx, d)
 	default:
 		return "", time.Time{}, sources.NewAdapterError(sources.ErrCodeInvalidConfig, "unknown discovery kind", nil)
 	}
@@ -49,6 +51,32 @@ func (a *Adapter) resolveByDateProbe(ctx context.Context, d *dataset) (string, t
 
 	for _, ed := range a.dateCandidates(d.Discover.Step, d.Discover.MaxBack) {
 		ok, lastmod, err := a.probe(ctx, subst(pf.URLTemplate, ed))
+		if err != nil {
+			return "", time.Time{}, err
+		}
+		if ok {
+			if lastmod.IsZero() {
+				lastmod = editionDate(ed)
+			}
+			return ed, lastmod, nil
+		}
+	}
+	return "", time.Time{}, sources.NewAdapterError(sources.ErrCodeNotFound, "no published edition found for "+d.ID, nil)
+}
+
+// resolveByIndexListing walks dated editions newest-first (annual, Jan 1) and
+// returns the first whose MasterFiles directory index exists.
+func (a *Adapter) resolveByIndexListing(ctx context.Context, d *dataset) (string, time.Time, error) {
+	if d.Discover.Index == nil {
+		return "", time.Time{}, sources.NewAdapterError(sources.ErrCodeInvalidConfig, "missing index spec for "+d.ID, nil)
+	}
+	step := d.Discover.Step
+	maxBack := d.Discover.MaxBack
+	if maxBack == 0 {
+		maxBack = 6
+	}
+	for _, ed := range a.dateCandidates(step, maxBack) {
+		ok, lastmod, err := a.probe(ctx, subst(d.Discover.Index.DirURLTemplate, ed))
 		if err != nil {
 			return "", time.Time{}, err
 		}

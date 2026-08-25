@@ -8,6 +8,10 @@ const (
 	cpcBulk    = "https://www.cooperativepatentclassification.org/sites/default/files/cpc/bulk/"
 	ipcMasters = "https://www.wipo.int/ipc/itos4ipc/ITSupport_and_download_area//{ed}/MasterFiles/"
 	usptoDocs  = "https://www.uspto.gov/sites/default/files/documents/"
+	// WIPO Nice (NCL) and Locarno (LOC) master-file directory indexes. Both are
+	// autoindex listings of dated zips, probed annually (Jan 1) newest-first.
+	niceMasters = "https://www.wipo.int/nice/its4nice/ITSupport_and_download_area/{ed}/MasterFiles/index.html"
+	locMasters  = "https://www.wipo.int/classifications/locarno/its4loc/ITSupport_and_download_area/{ed}/MasterFiles/index.html"
 )
 
 // classificationDatasets returns CPC and IPC. Both pull the definition
@@ -48,6 +52,38 @@ func classificationDatasets() []dataset {
 				Step:      stepYearlyJan1,
 				MaxBack:   6,
 				ProbeRole: "scheme",
+			},
+		},
+		{
+			ID:            "nice",
+			Name:          "Nice Classification (Goods & Services)",
+			Description:   "WIPO Nice Classification master files (the international classification of goods & services for trademarks): the class top structure (45 classes + basic numbers) and the classification texts (class headings, full explanatory notes, and ~10k accepted goods/services indications). Published annually on 1 January.",
+			CheckSchedule: "0 7 8 1 *", // 07:00 on 8 January
+			Files: []datasetFile{
+				{Role: "top_structure", FileNameRe: `^ncl-\d{8}-classification_top_structure-\d{8}\.zip$`},
+				{Role: "texts", FileNameRe: `^ncl-\d{8}-classification_texts-\d{8}\.zip$`},
+			},
+			Discover: discoverSpec{
+				Kind:    discoverIndexListing,
+				Step:    stepYearlyJan1,
+				MaxBack: 6,
+				Index:   &indexSpec{DirURLTemplate: niceMasters},
+			},
+		},
+		{
+			ID:            "locarno",
+			Name:          "Locarno Classification (Industrial Designs)",
+			Description:   "WIPO Locarno Classification master files (the international classification for industrial designs): the class/subclass top structure (32 classes + subclasses) and the classification texts (class & subclass headings, explanatory notes, and ~5k product indications). Published annually on 1 January.",
+			CheckSchedule: "0 7 8 1 *", // 07:00 on 8 January
+			Files: []datasetFile{
+				{Role: "top_structure", FileNameRe: `^loc-\d{8}-classification_top_structure-\d{8}\.zip$`},
+				{Role: "texts", FileNameRe: `^loc-\d{8}-classification_texts-\d{8}\.zip$`},
+			},
+			Discover: discoverSpec{
+				Kind:    discoverIndexListing,
+				Step:    stepYearlyJan1,
+				MaxBack: 6,
+				Index:   &indexSpec{DirURLTemplate: locMasters},
 			},
 		},
 		{

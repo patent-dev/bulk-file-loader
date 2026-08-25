@@ -32,6 +32,13 @@ const (
 	// fetches each section's HTML page into a ZIP. Used for the EPO Unitary
 	// Patent Guidelines (a Next.js app).
 	discoverTokenFetch
+	// discoverIndexListing date-probes a directory's index.html (newest edition
+	// first) to find the current edition, then resolves each file's actual URL by
+	// matching the listing — the files carry a per-file generation-date suffix
+	// (e.g. ncl-20240101-classification_texts-20250814.zip) that no fixed template
+	// can predict. Used for the WIPO Nice and Locarno master files, whose
+	// MasterFiles directory is an autoindex of dated zips.
+	discoverIndexListing
 )
 
 // stepKind selects the cadence walked by discoverDateProbe.
@@ -44,11 +51,19 @@ const (
 
 // datasetFile is one downloadable file within a dataset. URLTemplate and
 // NameTemplate may contain the edition token, which is substituted with the
-// resolved edition.
+// resolved edition. For discoverIndexListing datasets URLTemplate/NameTemplate
+// are unused; FileNameRe instead selects the file from the directory listing.
 type datasetFile struct {
 	Role         string // scheme, definitions, concordance, catchword, notice, ispe, guide, ...
 	URLTemplate  string
 	NameTemplate string
+	FileNameRe   string // discoverIndexListing: regexp matching this file's name in the listing
+}
+
+// indexSpec configures discoverIndexListing: a directory whose index.html lists
+// the edition's files as (absolute) links, probed newest-edition-first.
+type indexSpec struct {
+	DirURLTemplate string // directory index URL, with the edition token, e.g. ".../{ed}/MasterFiles/"
 }
 
 // crawlSpec configures the HTML-manual crawler.
@@ -85,6 +100,9 @@ type discoverSpec struct {
 
 	// discoverTokenFetch
 	Token *tokenSpec
+
+	// discoverIndexListing
+	Index *indexSpec
 }
 
 // apiSpec configures the EUIPO-style JSON content API walker.

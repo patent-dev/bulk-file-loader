@@ -167,10 +167,10 @@ func TestZipEntryName(t *testing.T) {
 func TestFetchProducts(t *testing.T) {
 	cl := NewClassifications()
 	cps, _ := cl.FetchProducts(context.Background())
-	if len(cps) != 3 {
-		t.Fatalf("classifications: got %d products, want 3", len(cps))
+	if len(cps) != 5 {
+		t.Fatalf("classifications: got %d products, want 5", len(cps))
 	}
-	want := map[string]bool{"cpc": false, "ipc": false, "jp-fterm": false}
+	want := map[string]bool{"cpc": false, "ipc": false, "jp-fterm": false, "nice": false, "locarno": false}
 	for _, p := range cps {
 		if _, ok := want[p.ExternalID]; !ok {
 			t.Errorf("unexpected classification product %q", p.ExternalID)

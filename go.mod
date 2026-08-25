@@ -1,15 +1,15 @@
 module github.com/patent-dev/bulk-file-loader
 
-go 1.26.0
+go 1.26.1
 
 require (
 	github.com/getkin/kin-openapi v0.133.0
 	github.com/ncruces/go-sqlite3 v0.30.2
 	github.com/ncruces/go-sqlite3/gormlite v0.30.2
 	github.com/oapi-codegen/runtime v1.2.0
-	github.com/patent-dev/dpma-connect-plus v0.2.2
-	github.com/patent-dev/epo-bdds v0.1.0
-	github.com/patent-dev/uspto-odp v1.2.1
+	github.com/patent-dev/dpma-connect-plus v0.3.0
+	github.com/patent-dev/epo-bdds v0.2.0
+	github.com/patent-dev/uspto-odp v1.6.1
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/spf13/cobra v1.10.2
 	golang.org/x/crypto v0.49.0

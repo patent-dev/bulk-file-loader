@@ -102,3 +102,59 @@ func TestLiveManualDiscovery(t *testing.T) {
 		t.Logf("%s current edition: %s", product, dels[0].ExternalID)
 	}
 }
+
+// TestLiveNiceLocarno exercises the discoverIndexListing path against the real
+// WIPO master-file directories: edition discovery, resolving the two zip URLs
+// from the autoindex, and downloading the (smaller) top_structure zip.
+func TestLiveNiceLocarno(t *testing.T) {
+	requireLive(t)
+	a := NewClassifications()
+	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
+	defer cancel()
+
+	for _, product := range []string{"nice", "locarno"} {
+		dels, err := a.FetchDeliveries(ctx, product)
+		if err != nil {
+			t.Errorf("%s: FetchDeliveries: %v", product, err)
+			continue
+		}
+		ed := dels[0].ExternalID
+		if !regexp.MustCompile(`^\d{8}$`).MatchString(ed) {
+			t.Errorf("%s: edition %q not YYYYMMDD", product, ed)
+		}
+		files, err := a.FetchFiles(ctx, product, ed)
+		if err != nil {
+			t.Errorf("%s: FetchFiles: %v", product, err)
+			continue
+		}
+		if len(files) != 2 {
+			t.Errorf("%s: got %d files, want 2 (top_structure + texts)", product, len(files))
+		}
+		var structFile *struct{ name, uri string }
+		for _, f := range files {
+			t.Logf("%s %s -> %s", product, f.FileName, f.DownloadURI)
+			if regexp.MustCompile(`top_structure`).MatchString(f.FileName) {
+				structFile = &struct{ name, uri string }{f.FileName, f.DownloadURI}
+			}
+		}
+		if structFile == nil {
+			t.Errorf("%s: no top_structure file resolved", product)
+			continue
+		}
+		// Download the smaller top_structure zip end-to-end.
+		for _, f := range files {
+			if f.FileName != structFile.name {
+				continue
+			}
+			var buf bytes.Buffer
+			if err := a.DownloadFile(ctx, f, &buf, nil); err != nil {
+				t.Errorf("%s: download %s: %v", product, f.FileName, err)
+				break
+			}
+			if buf.Len() == 0 || !bytes.HasPrefix(buf.Bytes(), []byte("PK")) {
+				t.Errorf("%s: downloaded %d bytes, not a ZIP", product, buf.Len())
+			}
+			t.Logf("%s downloaded %s: %d bytes", product, f.FileName, buf.Len())
+		}
+	}
+}

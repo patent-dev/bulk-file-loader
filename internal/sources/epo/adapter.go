@@ -6,6 +6,7 @@ import (
 	"io"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/patent-dev/bulk-file-loader/internal/sources"
 	bdds "github.com/patent-dev/epo-bdds"
@@ -244,7 +245,7 @@ func (a *Adapter) getClient() (*bdds.Client, error) {
 	client, err := bdds.NewClient(&bdds.Config{
 		Username: username,
 		Password: password,
-		Timeout:  timeout,
+		Timeout:  time.Duration(timeout) * time.Second,
 	})
 	if err != nil {
 		return nil, sources.NewAdapterError(sources.ErrCodeAuth, "Failed to create client", err)

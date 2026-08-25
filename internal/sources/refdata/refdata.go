@@ -14,11 +14,18 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"path"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/patent-dev/bulk-file-loader/internal/sources"
 )
+
+// listingHrefRe extracts link targets from a directory autoindex page. Unlike
+// the crawler's hrefRe it tolerates UNQUOTED hrefs, which the WIPO master-file
+// autoindex emits (href=https://…/ncl-….zip>).
+var listingHrefRe = regexp.MustCompile(`(?i)href=["']?([^"' >]+)`)
 
 const (
 	// ClassificationsID / ManualsID are the source identifiers surfaced in the
@@ -144,15 +151,22 @@ func (a *Adapter) FetchDeliveries(ctx context.Context, productID string) ([]sour
 	return []sources.DeliveryInfo{info}, nil
 }
 
-// FetchFiles builds the file list for a dataset edition. No network access is
-// needed: file URLs are derived from the edition by template substitution.
-func (a *Adapter) FetchFiles(_ context.Context, productID, deliveryID string) ([]sources.FileInfo, error) {
+// FetchFiles builds the file list for a dataset edition. For most datasets no
+// network access is needed: file URLs are derived from the edition by template
+// substitution. discoverIndexListing datasets are the exception — their file
+// names carry an unpredictable generation-date suffix, so the actual URLs are
+// resolved from the directory listing.
+func (a *Adapter) FetchFiles(ctx context.Context, productID, deliveryID string) ([]sources.FileInfo, error) {
 	d := a.byID[productID]
 	if d == nil {
 		return nil, sources.NewAdapterError(sources.ErrCodeNotFound, "Unknown product: "+productID, nil)
 	}
 	if deliveryID == "" {
 		return nil, sources.NewAdapterError(sources.ErrCodeInvalidConfig, "Empty edition", nil)
+	}
+
+	if d.Discover.Kind == discoverIndexListing {
+		return a.listingFiles(ctx, d, deliveryID)
 	}
 
 	result := make([]sources.FileInfo, 0, len(d.Files))
@@ -168,6 +182,53 @@ func (a *Adapter) FetchFiles(_ context.Context, productID, deliveryID string) ([
 			// For date-based editions (CPC YYYYMM, IPC YYYYMMDD) this records
 			// the release date; for non-date editions it stays zero.
 			ReleasedAt: editionDate(deliveryID),
+		})
+	}
+	return result, nil
+}
+
+// listingFiles resolves a discoverIndexListing dataset's files by fetching the
+// edition's directory index and matching each declared file's FileNameRe against
+// the listed links. The matched (absolute) link is the download URL and its base
+// name is the stored file name. A declared file with no match is an error, so a
+// missing master file fails loudly rather than importing a partial edition.
+func (a *Adapter) listingFiles(ctx context.Context, d *dataset, edition string) ([]sources.FileInfo, error) {
+	dirURL := subst(d.Discover.Index.DirURLTemplate, edition)
+	body, err := a.getBody(ctx, dirURL, maxPageBytes)
+	if err != nil {
+		return nil, err
+	}
+	var links []string
+	for _, m := range listingHrefRe.FindAllStringSubmatch(string(body), -1) {
+		links = append(links, m[1])
+	}
+
+	result := make([]sources.FileInfo, 0, len(d.Files))
+	for _, f := range d.Files {
+		re, err := regexp.Compile(f.FileNameRe)
+		if err != nil {
+			return nil, sources.NewAdapterError(sources.ErrCodeInvalidConfig, "bad FileNameRe for "+d.ID+":"+f.Role, err)
+		}
+		var matchURL, matchName string
+		for _, link := range links {
+			base := path.Base(link)
+			if re.MatchString(base) {
+				matchURL, matchName = link, base // last match wins (newest generation date)
+			}
+		}
+		if matchURL == "" {
+			return nil, sources.NewAdapterError(sources.ErrCodeNotFound,
+				"no "+f.Role+" file matching /"+f.FileNameRe+"/ in "+dirURL, nil)
+		}
+		role := f.Role
+		if role == "" {
+			role = "file"
+		}
+		result = append(result, sources.FileInfo{
+			ExternalID:  d.ID + ":" + role + ":" + edition,
+			FileName:    matchName,
+			DownloadURI: matchURL,
+			ReleasedAt:  editionDate(edition),
 		})
 	}
 	return result, nil
