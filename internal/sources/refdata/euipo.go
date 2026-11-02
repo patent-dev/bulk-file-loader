@@ -78,10 +78,10 @@ func (a *Adapter) fetchEUIPO(ctx context.Context, spec *apiSpec, dst io.Writer, 
 		return err
 	}
 
-	zw := zip.NewWriter(dst)
+	// Progress is the archive bytes written; the final size is unknown up front.
+	zw := zip.NewWriter(&progressWriter{dst: dst, total: -1, fn: progress})
 	var collected []euipoCollectedNode
 	seenPage := map[string]struct{}{}
-	var fetched int
 
 	var walk func(nodeID, parentID string) error
 	walk = func(nodeID, parentID string) error {
@@ -124,8 +124,6 @@ func (a *Adapter) fetchEUIPO(ctx context.Context, spec *apiSpec, dst io.Writer, 
 					if err := zipWriteBytes(zw, "page-"+pageID+".json", pb); err != nil {
 						return err
 					}
-					fetched++
-					report(progress, int64(fetched), int64(spec.MaxNodes))
 				}
 			}
 			sleepCtx(ctx, crawlDelay)

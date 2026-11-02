@@ -117,9 +117,11 @@ func (d *Downloader) Download(ctx context.Context, fileID string) error {
 	d.progress.Start(fileID, file.FileName, file.FileSize)
 	defer d.progress.Complete(fileID)
 
-	// Create hash writer for checksum
+	// Create hash writer for checksum; count the bytes actually received,
+	// which is the only reliable size for sources that do not list one.
 	hasher := sha256.New()
-	writer := io.MultiWriter(tempFile, hasher)
+	counter := &byteCounter{}
+	writer := io.MultiWriter(tempFile, hasher, counter)
 
 	// Download file
 	fileInfo := sources.FileInfo{
@@ -176,6 +178,8 @@ func (d *Downloader) Download(ctx context.Context, fileID string) error {
 		d.emitEvent(hooks.EventChecksumMismatch, &file, checksumAlerts)
 	}
 	completedAt := time.Now()
+	entry.Progress = counter.n
+	entry.TotalBytes = counter.n
 	entry.Status = database.DownloadStatusCompleted
 	entry.LocalPath = downloadPath
 	entry.LocalChecksum = localChecksum
@@ -185,7 +189,7 @@ func (d *Downloader) Download(ctx context.Context, fileID string) error {
 	}
 	d.progress.IncrementStatusVersion()
 
-	d.emitCompletedEvent(&file, downloadPath, localChecksum, nil)
+	d.emitCompletedEvent(&file, counter.n, downloadPath, localChecksum, nil)
 
 	slog.Info("Download completed", "fileID", fileID, "path", downloadPath)
 	return nil
@@ -280,13 +284,21 @@ func (d *Downloader) emitEvent(eventType string, file *database.File, alerts []h
 	d.hooks.Emit(context.Background(), event)
 }
 
-func (d *Downloader) emitCompletedEvent(file *database.File, path, checksum string, alerts []hooks.Alert) {
+func (d *Downloader) emitCompletedEvent(file *database.File, size int64, path, checksum string, alerts []hooks.Alert) {
 	event := hooks.NewEvent(hooks.EventDownloadCompleted, file.SourceID).
-		WithFile(file.ID, file.FileName, file.FileSize, checksum, path)
+		WithFile(file.ID, file.FileName, size, checksum, path)
 
 	for _, alert := range alerts {
 		event.WithAlert(alert.Type, alert.Message, alert.Severity)
 	}
 
 	d.hooks.Emit(context.Background(), event)
+}
+
+// byteCounter counts the bytes written through it.
+type byteCounter struct{ n int64 }
+
+func (c *byteCounter) Write(p []byte) (int, error) {
+	c.n += int64(len(p))
+	return len(p), nil
 }

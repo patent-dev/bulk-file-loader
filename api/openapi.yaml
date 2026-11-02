@@ -933,6 +933,7 @@ components:
         fileSize:
           type: integer
           format: int64
+          description: Size in bytes as listed by the source. Sources that list no size report 0 until the file is downloaded, then the downloaded size.
         expectedChecksum:
           type: string
         releasedAt:
@@ -988,9 +989,11 @@ components:
         progress:
           type: integer
           format: int64
+          description: Bytes received so far; the final size once completed.
         totalBytes:
           type: integer
           format: int64
+          description: Expected size while downloading (0 when unknown); the received size once completed.
         localPath:
           type: string
         localChecksum:
@@ -1035,6 +1038,7 @@ components:
         totalBytes:
           type: integer
           format: int64
+          description: Expected size in bytes, 0 when the source cannot tell in advance (for example a crawled manual).
         speed:
           type: number
           format: double

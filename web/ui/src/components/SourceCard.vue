@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 
 interface Source {
   id: string
@@ -19,6 +19,8 @@ const emit = defineEmits<{
   (e: 'select'): void
   (e: 'updated', enabled: boolean): void
 }>()
+
+const needsCredentials = computed(() => (props.source.credentialFields?.length ?? 0) > 0)
 
 const showConfig = ref(false)
 const credentials = ref<Record<string, string>>({})
@@ -119,7 +121,8 @@ async function saveConfig(enabled: boolean) {
     </div>
 
     <div class="text-sm text-gray-500 mb-3">
-      {{ source.hasCredentials ? 'Credentials configured' : 'No credentials' }}
+      <template v-if="!needsCredentials">No credentials needed</template>
+      <template v-else>{{ source.hasCredentials ? 'Credentials configured' : 'No credentials' }}</template>
     </div>
 
     <button
@@ -167,8 +170,13 @@ async function saveConfig(enabled: boolean) {
               {{ testResult.message }}
             </div>
 
+            <p v-if="!needsCredentials" class="text-sm text-gray-500">
+              This source is public and needs no credentials.
+            </p>
+
             <div class="flex justify-between">
               <button
+                v-if="needsCredentials"
                 type="button"
                 @click="testCredentials"
                 :disabled="testing"
@@ -177,7 +185,7 @@ async function saveConfig(enabled: boolean) {
                 {{ testing ? 'Testing...' : 'Test Credentials' }}
               </button>
 
-              <div class="space-x-2">
+              <div class="ml-auto space-x-2">
                 <button
                   v-if="source.enabled"
                   type="button"

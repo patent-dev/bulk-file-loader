@@ -63,9 +63,10 @@ func (a *Adapter) fetchTokenPages(ctx context.Context, spec *tokenSpec, dst io.W
 			fmt.Sprintf("seed page lists %d sections, above the %d-page cap: manual would be incomplete", len(tokens), spec.MaxPages), nil)
 	}
 
-	zw := zip.NewWriter(dst)
+	// Progress is the archive bytes written; the final size is unknown up front.
+	zw := zip.NewWriter(&progressWriter{dst: dst, total: -1, fn: progress})
 	var fetched, skipped int
-	for i, tok := range tokens {
+	for _, tok := range tokens {
 		if err := ctx.Err(); err != nil {
 			_ = zw.Close()
 			return err
@@ -83,7 +84,6 @@ func (a *Adapter) fetchTokenPages(ctx context.Context, spec *tokenSpec, dst io.W
 			return err
 		}
 		fetched++
-		report(progress, int64(i+1), int64(len(tokens)))
 		sleepCtx(ctx, crawlDelay)
 	}
 	if fetched == 0 {

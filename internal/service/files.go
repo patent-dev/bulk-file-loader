@@ -195,15 +195,20 @@ func (s *Service) ResetFile(id string) error {
 }
 
 func convertFile(f database.File, db *database.DB) generated.File {
-	s, errorMsg := deriveFileStatusAndError(f, db)
-	return convertFileWithStatus(f, fileStatus{status: s, errorMsg: errorMsg})
+	return convertFileWithStatus(f, deriveFileStatus(f, db))
 }
 
 func convertFileWithStatus(f database.File, fs fileStatus) generated.File {
+	// Sources that do not list sizes (crawled manuals, directory listings)
+	// report 0; once downloaded, the received size is known.
+	size := f.FileSize
+	if size == 0 {
+		size = fs.downloadedBytes
+	}
 	result := generated.File{
 		Id:       f.ID,
 		FileName: f.FileName,
-		FileSize: &f.FileSize,
+		FileSize: &size,
 		Status:   generated.FileStatus(fs.status),
 	}
 	if fs.errorMsg != "" {
@@ -229,22 +234,36 @@ func convertFileWithStatus(f database.File, fs fileStatus) generated.File {
 }
 
 type fileStatus struct {
-	status   string
-	errorMsg string
+	status          string
+	errorMsg        string
+	downloadedBytes int64 // size of the downloaded file on disk, 0 otherwise
 }
 
-func deriveFileStatusAndError(f database.File, db *database.DB) (string, string) {
+func statusFromEntry(entry database.DownloadEntry, skipped bool) fileStatus {
+	s, msg := resolveEntryStatus(entry, skipped)
+	fs := fileStatus{status: s, errorMsg: msg}
+	if s == "downloaded" {
+		if fi, err := os.Stat(entry.LocalPath); err == nil {
+			fs.downloadedBytes = fi.Size()
+		}
+	}
+	return fs
+}
+
+func statusWithoutEntry(skipped bool) fileStatus {
+	if skipped {
+		return fileStatus{status: "skipped"}
+	}
+	return fileStatus{status: "available"}
+}
+
+// deriveFileStatus resolves a file's status from its latest download entry.
+func deriveFileStatus(f database.File, db *database.DB) fileStatus {
 	var entry database.DownloadEntry
-	err := db.Where("file_id = ?", f.ID).Order("created_at DESC").First(&entry).Error
-	if err == nil {
-		return resolveEntryStatus(entry, f.Skipped)
+	if err := db.Where("file_id = ?", f.ID).Order("created_at DESC").First(&entry).Error; err != nil {
+		return statusWithoutEntry(f.Skipped)
 	}
-
-	if f.Skipped {
-		return "skipped", ""
-	}
-
-	return "available", ""
+	return statusFromEntry(entry, f.Skipped)
 }
 
 func resolveEntryStatus(entry database.DownloadEntry, skipped bool) (string, string) {
@@ -297,12 +316,9 @@ func batchDeriveFileStatuses(files []database.File, db *database.DB) map[string]
 
 	for _, f := range files {
 		if entry, ok := entryMap[f.ID]; ok {
-			s, msg := resolveEntryStatus(entry, f.Skipped)
-			result[f.ID] = fileStatus{status: s, errorMsg: msg}
-		} else if f.Skipped {
-			result[f.ID] = fileStatus{status: "skipped"}
+			result[f.ID] = statusFromEntry(entry, f.Skipped)
 		} else {
-			result[f.ID] = fileStatus{status: "available"}
+			result[f.ID] = statusWithoutEntry(f.Skipped)
 		}
 	}
 	return result

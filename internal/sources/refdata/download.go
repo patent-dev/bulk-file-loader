@@ -88,7 +88,8 @@ func (a *Adapter) crawl(ctx context.Context, spec *crawlSpec, dst io.Writer, pro
 		}
 	}
 
-	zw := zip.NewWriter(dst)
+	// Progress is the archive bytes written; the final size is unknown up front.
+	zw := zip.NewWriter(&progressWriter{dst: dst, total: -1, fn: progress})
 	writePage := func(pageURL string, body []byte) error {
 		w, err := zw.Create(zipEntryName(pageURL))
 		if err != nil {
@@ -123,7 +124,6 @@ func (a *Adapter) crawl(ctx context.Context, spec *crawlSpec, dst io.Writer, pro
 			return sources.NewAdapterError(sources.ErrCodeNetwork, "failed writing page to archive", err)
 		}
 		fetched++
-		report(progress, int64(fetched), int64(len(seen)))
 
 		// Resolve this page's relative links against the page's own URL (not the
 		// fixed index URL): pages can live in a different directory than the
@@ -307,13 +307,6 @@ func statusError(status int, target string) error {
 func drainClose(rc io.ReadCloser) {
 	_, _ = io.Copy(io.Discard, io.LimitReader(rc, 4<<10))
 	_ = rc.Close()
-}
-
-// report invokes a progress callback when present.
-func report(fn sources.ProgressFunc, done, total int64) {
-	if fn != nil {
-		fn(done, total)
-	}
 }
 
 // progressWriter forwards byte counts to a progress callback as data is written.

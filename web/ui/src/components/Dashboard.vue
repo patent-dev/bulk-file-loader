@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useAuthStore } from '../stores/auth'
+import { useDownloadStream } from '../composables/useDownloadStream'
 import Fuse from 'fuse.js'
 import SourceCard from './SourceCard.vue'
 import ActiveDownloads from './ActiveDownloads.vue'
@@ -268,6 +269,11 @@ async function refreshProductCounts() {
 async function handleFilesChanged() {
   await Promise.all([fetchStats(), fetchSourceErrors(), refreshProductCounts()])
 }
+
+// Download status changes (started, completed, failed) arrive over the
+// stream; refresh the counters right away instead of on the next poll.
+const { statusVersion } = useDownloadStream()
+watch(statusVersion, handleFilesChanged)
 
 async function fetchSourceErrors() {
   try {

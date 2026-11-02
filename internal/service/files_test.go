@@ -25,12 +25,13 @@ func seedFile(t *testing.T, svc *Service, id string) {
 	})
 }
 
-func TestDeriveFileStatusAndError(t *testing.T) {
+func TestDeriveFileStatus(t *testing.T) {
 	svc := setupTestService(t)
 	seedFile(t, svc, "f1")
 
 	// No download entry -> available
-	status, errMsg := deriveFileStatusAndError(database.File{ID: "f1"}, svc.DB)
+	fs := deriveFileStatus(database.File{ID: "f1"}, svc.DB)
+	status, errMsg := fs.status, fs.errorMsg
 	if status != "available" {
 		t.Errorf("expected available, got %s", status)
 	}
@@ -40,7 +41,7 @@ func TestDeriveFileStatusAndError(t *testing.T) {
 
 	// Downloading
 	svc.DB.Create(&database.DownloadEntry{FileID: "f1", Status: database.DownloadStatusDownloading})
-	status, _ = deriveFileStatusAndError(database.File{ID: "f1"}, svc.DB)
+	status = deriveFileStatus(database.File{ID: "f1"}, svc.DB).status
 	if status != "downloading" {
 		t.Errorf("expected downloading, got %s", status)
 	}
@@ -51,15 +52,18 @@ func TestDeriveFileStatusAndError(t *testing.T) {
 		t.Fatal(err)
 	}
 	svc.DB.Create(&database.DownloadEntry{FileID: "f1", Status: database.DownloadStatusCompleted, LocalPath: tmpFile})
-	status, _ = deriveFileStatusAndError(database.File{ID: "f1"}, svc.DB)
-	if status != "downloaded" {
-		t.Errorf("expected downloaded, got %s", status)
+	fs = deriveFileStatus(database.File{ID: "f1"}, svc.DB)
+	if fs.status != "downloaded" {
+		t.Errorf("expected downloaded, got %s", fs.status)
+	}
+	if fs.downloadedBytes != 4 {
+		t.Errorf("downloadedBytes = %d, want the 4 bytes on disk", fs.downloadedBytes)
 	}
 
 	// Completed + file missing -> deleted
 	svc.DB.Where("1 = 1").Delete(&database.DownloadEntry{})
 	svc.DB.Create(&database.DownloadEntry{FileID: "f1", Status: database.DownloadStatusCompleted, LocalPath: "/nonexistent/path"})
-	status, _ = deriveFileStatusAndError(database.File{ID: "f1"}, svc.DB)
+	status = deriveFileStatus(database.File{ID: "f1"}, svc.DB).status
 	if status != "deleted" {
 		t.Errorf("expected deleted, got %s", status)
 	}
@@ -67,7 +71,8 @@ func TestDeriveFileStatusAndError(t *testing.T) {
 	// Failed
 	svc.DB.Where("1 = 1").Delete(&database.DownloadEntry{})
 	svc.DB.Create(&database.DownloadEntry{FileID: "f1", Status: database.DownloadStatusFailed, ErrorMessage: "timeout"})
-	status, errMsg = deriveFileStatusAndError(database.File{ID: "f1"}, svc.DB)
+	fs = deriveFileStatus(database.File{ID: "f1"}, svc.DB)
+	status, errMsg = fs.status, fs.errorMsg
 	if status != "failed" {
 		t.Errorf("expected failed, got %s", status)
 	}
@@ -78,14 +83,14 @@ func TestDeriveFileStatusAndError(t *testing.T) {
 	// Cancelled
 	svc.DB.Where("1 = 1").Delete(&database.DownloadEntry{})
 	svc.DB.Create(&database.DownloadEntry{FileID: "f1", Status: database.DownloadStatusCancelled})
-	status, _ = deriveFileStatusAndError(database.File{ID: "f1"}, svc.DB)
+	status = deriveFileStatus(database.File{ID: "f1"}, svc.DB).status
 	if status != "cancelled" {
 		t.Errorf("expected cancelled, got %s", status)
 	}
 
 	// Skipped (no download entry, skipped flag set)
 	svc.DB.Where("1 = 1").Delete(&database.DownloadEntry{})
-	status, _ = deriveFileStatusAndError(database.File{ID: "f1", Skipped: true}, svc.DB)
+	status = deriveFileStatus(database.File{ID: "f1", Skipped: true}, svc.DB).status
 	if status != "skipped" {
 		t.Errorf("expected skipped, got %s", status)
 	}
