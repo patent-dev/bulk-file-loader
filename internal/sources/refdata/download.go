@@ -284,12 +284,13 @@ func zipEntryName(pageURL string) string {
 	return name
 }
 
-// statusError maps an HTTP status to an adapter error, or nil for 200 and 206.
-// Other 2xx statuses carry no usable content: WAFs answer bot traffic with a 202
-// challenge page, which must not be archived as the real document.
+// statusError maps the status of a full (non-ranged) GET to an adapter error,
+// or nil for 200. Other 2xx statuses carry no usable content: WAFs answer bot
+// traffic with a 202 challenge page, and an unrequested 206 is a partial body;
+// neither may be archived as the real document.
 func statusError(status int, target string) error {
 	switch status {
-	case http.StatusOK, http.StatusPartialContent:
+	case http.StatusOK:
 		return nil
 	case http.StatusUnauthorized, http.StatusForbidden:
 		return sources.NewAdapterError(sources.ErrCodeAuth, fmt.Sprintf("access denied (%d) for %s", status, target), nil)

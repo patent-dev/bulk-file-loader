@@ -225,3 +225,34 @@ func TestResetFileNotFound(t *testing.T) {
 		t.Errorf("expected ErrNotFound, got %v", err)
 	}
 }
+
+// TestListFilesSizeFallsBackToDownload verifies a file whose source lists no
+// size reports its downloaded size, while a listed size is kept.
+func TestListFilesSizeFallsBackToDownload(t *testing.T) {
+	svc := setupTestService(t)
+	seedFile(t, svc, "listed")
+	svc.DB.Create(&database.File{ID: "unlisted", DeliveryID: "del1", ProductID: "prod1", SourceID: "src1", FileName: "unlisted.zip"})
+
+	dir := t.TempDir()
+	for _, id := range []string{"listed", "unlisted"} {
+		path := filepath.Join(dir, id+".zip")
+		if err := os.WriteFile(path, []byte("data"), 0644); err != nil {
+			t.Fatal(err)
+		}
+		svc.DB.Create(&database.DownloadEntry{FileID: id, Status: database.DownloadStatusCompleted, LocalPath: path})
+	}
+
+	result, err := svc.ListFiles(nil, nil, nil, 0, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]int64{"listed": 1024, "unlisted": 4}
+	for _, f := range result.Files {
+		if f.FileSize == nil || *f.FileSize != want[f.Id] {
+			t.Errorf("%s: fileSize = %v, want %d", f.Id, f.FileSize, want[f.Id])
+		}
+	}
+	if len(result.Files) != 2 {
+		t.Errorf("got %d files, want 2", len(result.Files))
+	}
+}

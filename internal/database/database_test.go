@@ -47,6 +47,14 @@ func TestSettings(t *testing.T) {
 	if err == nil {
 		t.Error("GetSetting(nonexistent) should return error")
 	}
+
+	// An empty key must not match another setting
+	if v, err := db.GetSetting(""); err == nil {
+		t.Errorf("GetSetting(\"\") = %q, want not found", v)
+	}
+	if db.HasSetting("") {
+		t.Error("HasSetting(\"\") = true, want false")
+	}
 }
 
 func TestSettingUpdate(t *testing.T) {

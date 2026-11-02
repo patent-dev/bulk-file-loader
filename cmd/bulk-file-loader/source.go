@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/patent-dev/bulk-file-loader/api/generated"
 	"github.com/spf13/cobra"
 )
 
@@ -58,7 +59,7 @@ var sourceLsCmd = &cobra.Command{
 		rows := make([][]string, 0, len(srcs))
 		for _, s := range srcs {
 			rows = append(rows, []string{
-				s.Id, s.Name, boolToStr(s.Enabled), boolToStr(s.HasCredentials), fmtTime(s.LastSyncAt),
+				s.Id, s.Name, boolToStr(s.Enabled), credentialStatus(s), fmtTime(s.LastSyncAt),
 			})
 		}
 
@@ -97,7 +98,7 @@ var sourceShowCmd = &cobra.Command{
 			{"ID", src.Id},
 			{"Name", src.Name},
 			{"Enabled", boolToStr(src.Enabled)},
-			{"Has Credentials", boolToStr(src.HasCredentials)},
+			{"Has Credentials", credentialStatus(src)},
 			{"Last Sync", lastSync},
 		}
 		for _, cf := range src.CredentialFields {
@@ -228,4 +229,13 @@ func sourceTimeout() time.Duration {
 		return time.Duration(flagTimeout) * time.Second
 	}
 	return 60 * time.Second
+}
+
+// credentialStatus describes a source's credentials; public sources have no
+// credential fields and need none.
+func credentialStatus(s generated.Source) string {
+	if len(s.CredentialFields) == 0 {
+		return "not needed"
+	}
+	return boolToStr(s.HasCredentials)
 }

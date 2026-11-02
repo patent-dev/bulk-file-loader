@@ -2,6 +2,9 @@ module github.com/patent-dev/bulk-file-loader
 
 go 1.27.0
 
+// The UI dependencies ship unrelated Go packages; keep them out of ./...
+ignore ./web/ui/node_modules
+
 require (
 	github.com/getkin/kin-openapi v0.152.0
 	github.com/go-sql-driver/mysql v1.10.1

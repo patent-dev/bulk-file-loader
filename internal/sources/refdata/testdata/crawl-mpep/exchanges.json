@@ -1,0 +1,212 @@
+{
+  "capturedAt": "2026-11-02T09:17:58.621728Z",
+  "exchanges": [
+    {
+      "method": "GET",
+      "url": "https://www.uspto.gov/web/offices/pac/mpep/",
+      "status": 200,
+      "header": {
+        "Content-Type": "text/html; charset=UTF-8"
+      },
+      "body": "938c29ba26f7fb9c.html.gz"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.uspto.gov/web/offices/pac/mpep/",
+      "status": 200,
+      "header": {
+        "Content-Type": "text/html; charset=UTF-8"
+      },
+      "body": "938c29ba26f7fb9c.html.gz"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.uspto.gov/web/offices/pac/mpep/mpep-0100.html",
+      "status": 200,
+      "header": {
+        "Content-Type": "text/html; charset=UTF-8"
+      },
+      "body": "ce7f4d4650f19eb9.html.gz"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.uspto.gov/web/offices/pac/mpep/s101.html",
+      "status": 200,
+      "header": {
+        "Content-Type": "text/html; charset=UTF-8"
+      },
+      "body": "e787188b94c82654.html.gz"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.uspto.gov/web/offices/pac/mpep/s102.html",
+      "status": 200,
+      "header": {
+        "Content-Type": "text/html; charset=UTF-8"
+      },
+      "body": "c3d6c95cb34b22cd.html.gz"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.uspto.gov/web/offices/pac/mpep/s103.html",
+      "status": 200,
+      "header": {
+        "Content-Type": "text/html; charset=UTF-8"
+      },
+      "body": "fe2ea9edc785f698.html.gz"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.uspto.gov/web/offices/pac/mpep/s104.html",
+      "status": 200,
+      "header": {
+        "Content-Type": "text/html; charset=UTF-8"
+      },
+      "body": "c1f89681b3e1dabc.html.gz"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.uspto.gov/web/offices/pac/mpep/s105.html",
+      "status": 200,
+      "header": {
+        "Content-Type": "text/html; charset=UTF-8"
+      },
+      "body": "da4e4fcaebe0e2e5.html.gz"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.uspto.gov/web/offices/pac/mpep/s106.html",
+      "status": 200,
+      "header": {
+        "Content-Type": "text/html; charset=UTF-8"
+      },
+      "body": "597ced0a41ef2ad5.html.gz"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.uspto.gov/web/offices/pac/mpep/s107%E2%80%91109.html",
+      "status": 200,
+      "header": {
+        "Content-Type": "text/html; charset=UTF-8"
+      },
+      "body": "d86d260146032bf5.html.gz"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.uspto.gov/web/offices/pac/mpep/s110.html",
+      "status": 200,
+      "header": {
+        "Content-Type": "text/html; charset=UTF-8"
+      },
+      "body": "a167d97b0a0d2e9d.html.gz"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.uspto.gov/web/offices/pac/mpep/s111%E2%80%91114.html",
+      "status": 200,
+      "header": {
+        "Content-Type": "text/html; charset=UTF-8"
+      },
+      "body": "7c85aa1bc58f22ab.html.gz"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.uspto.gov/web/offices/pac/mpep/s115.html",
+      "status": 200,
+      "header": {
+        "Content-Type": "text/html; charset=UTF-8"
+      },
+      "body": "f5489fc3ab89a56c.html.gz"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.uspto.gov/web/offices/pac/mpep/s116%E2%80%91119.html",
+      "status": 200,
+      "header": {
+        "Content-Type": "text/html; charset=UTF-8"
+      },
+      "body": "a597d57821a7fc50.html.gz"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.uspto.gov/web/offices/pac/mpep/s120.html",
+      "status": 200,
+      "header": {
+        "Content-Type": "text/html; charset=UTF-8"
+      },
+      "body": "447972ac4dd6c49e.html.gz"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.uspto.gov/web/offices/pac/mpep/s121.html",
+      "status": 200,
+      "header": {
+        "Content-Type": "text/html; charset=UTF-8"
+      },
+      "body": "defea55d43fd270f.html.gz"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.uspto.gov/web/offices/pac/mpep/s122%E2%80%91129.html",
+      "status": 200,
+      "header": {
+        "Content-Type": "text/html; charset=UTF-8"
+      },
+      "body": "3c22c0ff15916d35.html.gz"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.uspto.gov/web/offices/pac/mpep/s130.html",
+      "status": 200,
+      "header": {
+        "Content-Type": "text/html; charset=UTF-8"
+      },
+      "body": "c16bc25c9c1fdc4b.html.gz"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.uspto.gov/web/offices/pac/mpep/s131%E2%80%91139.html",
+      "status": 200,
+      "header": {
+        "Content-Type": "text/html; charset=UTF-8"
+      },
+      "body": "8c5a894069e7e52e.html.gz"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.uspto.gov/web/offices/pac/mpep/s140.html",
+      "status": 200,
+      "header": {
+        "Content-Type": "text/html; charset=UTF-8"
+      },
+      "body": "43174c22983ea6cf.html.gz"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.uspto.gov/web/offices/pac/mpep/s141%E2%80%91149.html",
+      "status": 200,
+      "header": {
+        "Content-Type": "text/html; charset=UTF-8"
+      },
+      "body": "11cc4a8da5a184cb.html.gz"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.uspto.gov/web/offices/pac/mpep/s150.html",
+      "status": 200,
+      "header": {
+        "Content-Type": "text/html; charset=UTF-8"
+      },
+      "body": "bc7facb9dffc633c.html.gz"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.uspto.gov/web/offices/pac/mpep/s151.html",
+      "status": 200,
+      "header": {
+        "Content-Type": "text/html; charset=UTF-8"
+      },
+      "body": "7237492884934c6a.html.gz"
+    }
+  ]
+}

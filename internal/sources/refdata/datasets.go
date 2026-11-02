@@ -161,7 +161,7 @@ func manualDatasets() []dataset {
 					BaseURL:       "https://guidelines.euipo.europa.eu",
 					Language:      "en",
 					TitleContains: "trade mark guidelines",
-					MaxNodes:      8000,
+					MaxNodes:      8000, // the 2026-07-01 edition has 1988 nodes
 				},
 			},
 		},

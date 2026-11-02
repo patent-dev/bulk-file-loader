@@ -46,21 +46,20 @@ type capture struct {
 
 func exchangeKey(method, url, rng string) string { return method + " " + url + " " + rng }
 
-// recorder performs real requests and records every exchange.
+// recorder performs real requests and records every exchange into a staging
+// directory; save moves it over testdata/<scenario> only once the scenario
+// behaved as expected, so a blocked or broken capture never replaces good data.
 type recorder struct {
 	client *http.Client
-	dir    string
+	dir    string // staging directory
 
 	mu  sync.Mutex
 	cap capture
 }
 
-func newRecorder(t *testing.T, scenario string) *recorder {
+func newRecorder(t *testing.T) *recorder {
 	t.Helper()
-	dir := filepath.Join("testdata", scenario)
-	if err := os.RemoveAll(dir); err != nil {
-		t.Fatal(err)
-	}
+	dir := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(dir, "bodies"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -111,13 +110,20 @@ func (r *recorder) Do(req *http.Request) (*http.Response, error) {
 	return resp, nil
 }
 
-func (r *recorder) save(t *testing.T) {
+func (r *recorder) save(t *testing.T, scenario string) {
 	t.Helper()
 	data, err := json.MarshalIndent(r.cap, "", "  ")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(r.dir, "exchanges.json"), append(data, '\n'), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	dest := filepath.Join("testdata", scenario)
+	if err := os.RemoveAll(dest); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.CopyFS(dest, os.DirFS(r.dir)); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -211,7 +217,9 @@ func (rp *replayer) Do(req *http.Request) (*http.Response, error) {
 	}
 	body := rp.body(ex)
 	status := ex.Status
-	contentLength := int64(len(body))
+	// Without a recorded Content-Length the server streamed the body
+	// (chunked); replay it the same way.
+	contentLength := int64(-1)
 	if v, err := strconv.ParseInt(ex.Header["Content-Length"], 10, 64); err == nil {
 		contentLength = v
 	}
@@ -252,11 +260,13 @@ func fixedClock(t time.Time) func() time.Time { return func() time.Time { return
 
 // scenario is one recorded interaction with the real sources. run must make
 // the same requests on every call given the same clock, so that a replay
-// reproduces the recording exactly.
+// reproduces the recording exactly. wantErr marks scenarios that record a
+// failure on purpose (an exceeded cap); any other outcome aborts the capture.
 type scenario struct {
 	name     string
 	datasets func() []dataset
 	run      func(ctx context.Context, a *Adapter) error
+	wantErr  bool
 }
 
 // TestCapture records every scenario against the live sources.
@@ -266,16 +276,17 @@ func TestCapture(t *testing.T) {
 	}
 	for _, sc := range scenarios {
 		t.Run(sc.name, func(t *testing.T) {
-			rec := newRecorder(t, sc.name)
+			rec := newRecorder(t)
 			a := newAdapter("test", "Test", sc.datasets())
 			a.client = rec
 			a.now = fixedClock(rec.cap.CapturedAt)
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 			defer cancel()
-			if err := sc.run(ctx, a); err != nil {
-				t.Logf("scenario returned error (recorded as is): %v", err)
+			err := sc.run(ctx, a)
+			if (err != nil) != sc.wantErr {
+				t.Fatalf("scenario error = %v, wantErr %v; testdata/%s left unchanged", err, sc.wantErr, sc.name)
 			}
-			rec.save(t)
+			rec.save(t, sc.name)
 		})
 	}
 }

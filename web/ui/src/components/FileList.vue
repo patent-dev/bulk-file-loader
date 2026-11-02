@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, computed, onMounted, onUnmounted } from 'vue'
 import { useDownloadStream } from '../composables/useDownloadStream'
+import { coalesced } from '../composables/coalesced'
 import DownloadProgressBar from './DownloadProgressBar.vue'
 
 interface File {
@@ -177,9 +178,11 @@ const downloadProgressMap = computed(() => {
   return map
 })
 
-// Refetch immediately when any download status changes
-watch(statusVersion, () => {
-  fetchFiles(false)
+// Refetch immediately when any download status changes; bursts collapse into
+// one request and the first message after mount is skipped (onMounted loads).
+const refreshFiles = coalesced(() => fetchFiles(false))
+watch(statusVersion, (_, previous) => {
+  if (previous !== 0) refreshFiles()
 })
 
 // Fallback poll in case SSE disconnects

@@ -117,7 +117,7 @@ func TestStatusError(t *testing.T) {
 		code   string // "" means nil error
 	}{
 		{200, ""},
-		{206, ""},
+		{206, sources.ErrCodeNetwork}, // partial body without a Range request
 		{202, sources.ErrCodeNetwork}, // WAF challenge, not content
 		{404, sources.ErrCodeNotFound},
 		{410, sources.ErrCodeNotFound},

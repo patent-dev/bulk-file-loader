@@ -11,7 +11,7 @@ Both modes share the same data directory and database. You can use them intercha
 
 ### Data model
 
-- **Sources** are patent offices (EPO BDDS, USPTO ODP, DPMA Connect Plus). Each source requires credentials.
+- **Sources** are patent offices (EPO BDDS, USPTO ODP, DPMA Connect Plus), which require credentials, and public reference data (Patent Classifications, Examination Manuals & Guidelines), which needs none.
 - **Products** are data collections within a source (e.g., "14.1 EP bibliographic data", "Patent Grant Full-Text Data").
 - **Files** are the individual downloadable archives within a product release.
 

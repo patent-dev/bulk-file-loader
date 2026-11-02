@@ -70,13 +70,19 @@ func (a *Adapter) resolveEUIPOPublication(ctx context.Context, spec *apiSpec) (p
 	return "", "", sources.NewAdapterError(sources.ErrCodeNotFound, "no current EUIPO publication for "+spec.TitleContains, nil)
 }
 
-// fetchEUIPO walks the toc tree and fetches each content page, writing toc.json
-// plus page-{pageId}.json into the ZIP at dst.
+// fetchEUIPO walks the current publication's toc tree and fetches each content
+// page, writing toc.json plus page-{pageId}.json into the ZIP at dst.
 func (a *Adapter) fetchEUIPO(ctx context.Context, spec *apiSpec, dst io.Writer, progress sources.ProgressFunc) error {
 	pubID, _, err := a.resolveEUIPOPublication(ctx, spec)
 	if err != nil {
 		return err
 	}
+	return a.archiveEUIPO(ctx, spec, pubID, "", dst, progress)
+}
+
+// archiveEUIPO archives the toc subtree below rootID ("" for the whole
+// publication) and its content pages into the ZIP at dst.
+func (a *Adapter) archiveEUIPO(ctx context.Context, spec *apiSpec, pubID, rootID string, dst io.Writer, progress sources.ProgressFunc) error {
 
 	// Progress is the archive bytes written; the final size is unknown up front.
 	zw := zip.NewWriter(&progressWriter{dst: dst, total: -1, fn: progress})
@@ -136,7 +142,7 @@ func (a *Adapter) fetchEUIPO(ctx context.Context, spec *apiSpec, dst io.Writer, 
 		return nil
 	}
 
-	if err := walk("", ""); err != nil {
+	if err := walk(rootID, rootID); err != nil {
 		_ = zw.Close()
 		return err
 	}

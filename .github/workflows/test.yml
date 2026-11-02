@@ -20,8 +20,9 @@ jobs:
             dsn: 'postgres://postgres:test@127.0.0.1:5432/postgres?sslmode=disable'
     name: test (${{ matrix.db }})
     services:
+      # An empty image skips the service, so each leg starts only its database.
       mysql:
-        image: mysql:8.4
+        image: ${{ matrix.db == 'mysql' && 'mysql:8.4' || '' }}
         env:
           MYSQL_ROOT_PASSWORD: test
         ports: ['3306:3306']
@@ -29,7 +30,7 @@ jobs:
           --health-cmd "mysqladmin ping -ptest"
           --health-interval 5s --health-timeout 5s --health-retries 20
       postgres:
-        image: postgres:17-alpine
+        image: ${{ matrix.db == 'postgres' && 'postgres:17-alpine' || '' }}
         env:
           POSTGRES_PASSWORD: test
         ports: ['5432:5432']

@@ -240,14 +240,8 @@ type fileStatus struct {
 }
 
 func statusFromEntry(entry database.DownloadEntry, skipped bool) fileStatus {
-	s, msg := resolveEntryStatus(entry, skipped)
-	fs := fileStatus{status: s, errorMsg: msg}
-	if s == "downloaded" {
-		if fi, err := os.Stat(entry.LocalPath); err == nil {
-			fs.downloadedBytes = fi.Size()
-		}
-	}
-	return fs
+	s, msg, size := resolveEntryStatus(entry, skipped)
+	return fileStatus{status: s, errorMsg: msg, downloadedBytes: size}
 }
 
 func statusWithoutEntry(skipped bool) fileStatus {
@@ -266,27 +260,29 @@ func deriveFileStatus(f database.File, db *database.DB) fileStatus {
 	return statusFromEntry(entry, f.Skipped)
 }
 
-func resolveEntryStatus(entry database.DownloadEntry, skipped bool) (string, string) {
+// resolveEntryStatus maps a download entry to a file status, its error
+// message and, for a file still on disk, its size there.
+func resolveEntryStatus(entry database.DownloadEntry, skipped bool) (status, errMsg string, size int64) {
 	switch entry.Status {
 	case database.DownloadStatusDownloading:
-		return "downloading", ""
+		return "downloading", "", 0
 	case database.DownloadStatusCompleted:
 		if entry.LocalPath != "" {
-			if _, err := os.Stat(entry.LocalPath); err == nil {
-				return "downloaded", ""
+			if fi, err := os.Stat(entry.LocalPath); err == nil {
+				return "downloaded", "", fi.Size()
 			}
 		}
-		return "deleted", ""
+		return "deleted", "", 0
 	case database.DownloadStatusFailed:
-		return "failed", entry.ErrorMessage
+		return "failed", entry.ErrorMessage, 0
 	case database.DownloadStatusCancelled:
-		return "cancelled", ""
+		return "cancelled", "", 0
 	}
 
 	if skipped {
-		return "skipped", ""
+		return "skipped", "", 0
 	}
-	return "available", ""
+	return "available", "", 0
 }
 
 func batchDeriveFileStatuses(files []database.File, db *database.DB) map[string]fileStatus {

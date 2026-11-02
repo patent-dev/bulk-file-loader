@@ -18,6 +18,22 @@
   }
 }
 
+/*
+  Tailwind CSS v4 no longer sets a pointer cursor on buttons and changed the
+  default placeholder color; keep the v3 behaviour.
+*/
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--color-gray-400);
+  }
+}
+
 body {
   @apply bg-gray-50 text-gray-900;
 }

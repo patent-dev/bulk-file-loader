@@ -2,6 +2,7 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { useDownloadStream } from '../composables/useDownloadStream'
+import { coalesced } from '../composables/coalesced'
 import Fuse from 'fuse.js'
 import SourceCard from './SourceCard.vue'
 import ActiveDownloads from './ActiveDownloads.vue'
@@ -271,9 +272,14 @@ async function handleFilesChanged() {
 }
 
 // Download status changes (started, completed, failed) arrive over the
-// stream; refresh the counters right away instead of on the next poll.
+// stream; refresh the counters right away instead of on the next poll. Bursts
+// collapse into one refresh, and the first message after mount (0 -> current
+// version) is skipped since onMounted already loaded everything.
 const { statusVersion } = useDownloadStream()
-watch(statusVersion, handleFilesChanged)
+const refreshCounters = coalesced(handleFilesChanged)
+watch(statusVersion, (_, previous) => {
+  if (previous !== 0) refreshCounters()
+})
 
 async function fetchSourceErrors() {
   try {

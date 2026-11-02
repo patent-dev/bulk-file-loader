@@ -993,7 +993,7 @@ components:
         totalBytes:
           type: integer
           format: int64
-          description: Expected size while downloading (0 when unknown); the received size once completed.
+          description: Expected size while downloading (0 when unknown); the received size once completed. Entries completed by older versions may hold the last progress snapshot instead.
         localPath:
           type: string
         localChecksum:

@@ -10,6 +10,7 @@ import (
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 	"gorm.io/gorm/logger"
 )
 
@@ -89,7 +90,7 @@ func runMigrations(db *gorm.DB) error {
 
 func (db *DB) GetSetting(key string) (string, error) {
 	var setting Setting
-	if err := db.Where(&Setting{Key: key}).First(&setting).Error; err != nil {
+	if err := db.Where(clause.Eq{Column: clause.Column{Name: "key"}, Value: key}).First(&setting).Error; err != nil {
 		return "", err
 	}
 	return setting.Value, nil
@@ -101,7 +102,7 @@ func (db *DB) SetSetting(key, value string) error {
 
 func (db *DB) HasSetting(key string) bool {
 	var count int64
-	db.Model(&Setting{}).Where(&Setting{Key: key}).Count(&count)
+	db.Model(&Setting{}).Where(clause.Eq{Column: clause.Column{Name: "key"}, Value: key}).Count(&count)
 	return count > 0
 }
 

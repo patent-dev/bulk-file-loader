@@ -2,7 +2,10 @@ package downloader
 
 import (
 	"context"
+	"encoding/json"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"sync"
 	"testing"
 	"time"
@@ -342,12 +345,10 @@ func TestProgressThrottling(t *testing.T) {
 		t.Errorf("status = %q, want completed", entry.Status)
 	}
 
-	// 100 progress callbacks were fired, but the 5-second throttle means
-	// the DB entry should have progress from at most the first callback
-	// (the only one that passes the time check). The final completed Save
-	// does not update Progress, so it stays at the throttled value.
-	if entry.Progress >= 9900 {
-		t.Errorf("progress = %d; throttle should prevent DB from seeing the last callbacks", entry.Progress)
+	// The adapter's callbacks claimed 10000 bytes, but the completed entry
+	// records what actually arrived: the 4 bytes written.
+	if entry.Progress != 4 || entry.TotalBytes != 4 {
+		t.Errorf("completed entry progress/total = %d/%d, want the 4 bytes received", entry.Progress, entry.TotalBytes)
 	}
 
 	// Meanwhile, the in-memory progress tracker should have been updated on every tick
@@ -363,5 +364,44 @@ func TestGetProgress(t *testing.T) {
 	progress := downloader.GetProgress("nonexistent")
 	if progress != nil {
 		t.Error("GetProgress for nonexistent file should return nil")
+	}
+}
+
+// TestCompletedEventReportsReceivedBytes verifies download.completed carries
+// the size actually received, not the size the source listed (0 here, as for
+// sources that list none).
+func TestCompletedEventReportsReceivedBytes(t *testing.T) {
+	db, registry, hooksManager, cfg := setupTestEnv(t)
+	dl := New(db, registry, hooksManager, cfg)
+
+	events := make(chan hooks.Event, 4)
+	receiver := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var e hooks.Event
+		if err := json.NewDecoder(r.Body).Decode(&e); err != nil {
+			t.Errorf("decode webhook: %v", err)
+		}
+		events <- e
+	}))
+	defer receiver.Close()
+	if _, err := hooksManager.CreateWebhook("test", receiver.URL, []string{hooks.EventDownloadCompleted}); err != nil {
+		t.Fatal(err)
+	}
+
+	registry.Register(&mockAdapter{})
+	db.Create(&database.Source{ID: "mock", Name: "Mock", Enabled: true})
+	db.Create(&database.Product{ID: "prod", SourceID: "mock", Name: "Product"})
+	db.Create(&database.Delivery{ID: "del", ProductID: "prod", Name: "Delivery"})
+	db.Create(&database.File{ID: "file-size", DeliveryID: "del", ProductID: "prod", SourceID: "mock", FileName: "f.txt"})
+
+	if err := dl.Download(context.Background(), "file-size"); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case e := <-events:
+		if e.File == nil || e.File.Size != int64(len("test content")) {
+			t.Errorf("download.completed file = %+v, want size %d", e.File, len("test content"))
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("no download.completed webhook received")
 	}
 }

@@ -4,11 +4,14 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
+	"maps"
 	"net/http"
 	"net/url"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -45,8 +48,27 @@ func unitarySection12() dataset {
 	return d
 }
 
-// euipoCapped stops the EUIPO walk after a few nodes; the full guidelines are
-// too large to record.
+// mpepChapter100 crawls the real MPEP index but keeps only chapter 100: the
+// index links the chapter page, and only the chapter page links its sections
+// (relatively), so the crawl has to follow links more than one level deep.
+// The production SkipRe still drops the archived editions, the zip and PDFs;
+// the subject index pages are dropped to keep the recording small.
+func mpepChapter100() dataset {
+	d := datasetByID("mpep")
+	spec := *d.Discover.Crawl
+	spec.SkipRe = spec.SkipRe[:len(spec.SkipRe)-1] + `|/index\.html?$|/mpep-index-|/mpep-(0[02-9]|[1-9]\d)\d\d|/s([02-9]\d\d|\d{4})[^/]*$)`
+	spec.MaxPages = 100
+	d.Discover.Crawl = &spec
+	return d
+}
+
+// euipoSection is the EUIPO toc subtree archived by the euipo-section
+// scenario: "Editor's note and general introduction", small enough to record
+// in full (the whole guidelines are about 2000 pages).
+const euipoSection = "t1-k3"
+
+// euipoCapped stops the EUIPO walk after a few nodes to record the cap
+// failure.
 func euipoCapped() dataset {
 	d := datasetByID("euipo-tm")
 	spec := *d.Discover.API
@@ -126,11 +148,31 @@ var scenarios = []scenario{
 		},
 	},
 	{
-		name:     "euipo",
+		name:     "crawl-mpep",
+		datasets: func() []dataset { return []dataset{mpepChapter100()} },
+		run: func(ctx context.Context, a *Adapter) error {
+			return fetchAndDownload(ctx, a, "mpep", "manual")
+		},
+	},
+	{
+		name:     "euipo-section",
+		datasets: func() []dataset { return []dataset{datasetByID("euipo-tm")} },
+		run: func(ctx context.Context, a *Adapter) error {
+			spec := a.byID["euipo-tm"].Discover.API
+			pubID, _, err := a.resolveEUIPOPublication(ctx, spec)
+			if err != nil {
+				return err
+			}
+			return a.archiveEUIPO(ctx, spec, pubID, euipoSection, io.Discard, nil)
+		},
+	},
+	{
+		name:     "euipo-cap",
 		datasets: func() []dataset { return []dataset{euipoCapped()} },
 		run: func(ctx context.Context, a *Adapter) error {
 			return fetchAndDownload(ctx, a, "euipo-tm", "manual")
 		},
+		wantErr: true,
 	},
 }
 
@@ -344,18 +386,14 @@ func TestReplayListingRejectsChallengePage(t *testing.T) {
 
 func TestReplayEditions(t *testing.T) {
 	datasets := append([]dataset{datasetByID("jp-fterm")}, manualDatasets()...)
-	a, _ := replayAdapter(t, "editions", datasets)
+	a, rp := replayAdapter(t, "editions", datasets)
 	formats := map[string]string{
-		"jp-fterm":      `^\d{8}$`,
-		"mpep":          `^e\d+r-[0-9-]+$`,
-		"tmep":          `^[a-z]+\d{4}$`,
-		"euipo-tm":      `^\d{8}$`,
-		"wipo-ispe":     `^\d{6}(\d{2})?$`, // Last-Modified date, else the month
-		"epo-epc":       `^\d{4}$`,
-		"epo-pct":       `^\d{4}$`,
-		"epo-up":        `^\d{4}$`,
-		"ipa-patent":    `^\d{6}(\d{2})?$`,
-		"ipa-trademark": `^\d{6}(\d{2})?$`,
+		"mpep":     `^e\d+r-[0-9-]+$`,
+		"tmep":     `^[a-z]+\d{4}$`,
+		"euipo-tm": `^\d{8}$`,
+		"epo-epc":  `^\d{4}$`,
+		"epo-pct":  `^\d{4}$`,
+		"epo-up":   `^\d{4}$`,
 	}
 	for _, d := range datasets {
 		dels, err := a.FetchDeliveries(context.Background(), d.ID)
@@ -363,13 +401,27 @@ func TestReplayEditions(t *testing.T) {
 			t.Errorf("%s: %v", d.ID, err)
 			continue
 		}
-		re, ok := formats[d.ID]
-		if !ok {
-			t.Errorf("%s: no expected edition format", d.ID)
+		got := dels[0].ExternalID
+		if re, ok := formats[d.ID]; ok {
+			if !regexp.MustCompile(re).MatchString(got) {
+				t.Errorf("%s: edition %q does not match %s", d.ID, got, re)
+			}
 			continue
 		}
-		if !regexp.MustCompile(re).MatchString(dels[0].ExternalID) {
-			t.Errorf("%s: edition %q does not match %s", d.ID, dels[0].ExternalID, re)
+		// Crawled manuals without an edition on the page: the index's
+		// Last-Modified date, or the capture month when the server sent none.
+		if d.Discover.Crawl == nil || d.Discover.Crawl.EditionRe != "" {
+			t.Errorf("%s: no expected edition", d.ID)
+			continue
+		}
+		want := rp.cap.CapturedAt.UTC().Format("200601")
+		for _, ex := range rp.recorded(http.MethodGet, func(u string) bool { return u == d.Discover.Crawl.IndexURL }) {
+			if lm := parseLastModified(ex.Header["Last-Modified"]); !lm.IsZero() {
+				want = lm.UTC().Format("20060102")
+			}
+		}
+		if got != want {
+			t.Errorf("%s: edition %q, want %q", d.ID, got, want)
 		}
 	}
 }
@@ -566,8 +618,8 @@ func TestReplayTokenFetchFailsWhenNoSectionArrives(t *testing.T) {
 	wantAdapterError(t, err, sources.ErrCodeNetwork)
 }
 
-func TestReplayEUIPO(t *testing.T) {
-	a, rp := replayAdapter(t, "euipo", []dataset{euipoCapped()})
+func TestReplayEUIPOCap(t *testing.T) {
+	a, rp := replayAdapter(t, "euipo-cap", []dataset{euipoCapped()})
 	del, files := editionAndFiles(t, a, "euipo-tm")
 	if !regexp.MustCompile(`^\d{8}$`).MatchString(del.ExternalID) {
 		t.Errorf("EUIPO edition %q is not an entry-into-force date", del.ExternalID)
@@ -589,5 +641,125 @@ func TestReplayEUIPO(t *testing.T) {
 	rp.failWith(pages[0].URL, http.StatusServiceUnavailable)
 	if _, err := download(t, a, files[0]); err == nil || strings.Contains(err.Error(), "cap") {
 		t.Errorf("a failing page must abort the walk, got %v", err)
+	}
+}
+
+func TestReplayEUIPOSection(t *testing.T) {
+	a, rp := replayAdapter(t, "euipo-section", []dataset{datasetByID("euipo-tm")})
+	spec := a.byID["euipo-tm"].Discover.API
+	pubID, _, err := a.resolveEUIPOPublication(context.Background(), spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	if err := a.archiveEUIPO(context.Background(), spec, pubID, euipoSection, &buf, nil); err != nil {
+		t.Fatal(err)
+	}
+	entries := zipEntries(t, buf.Bytes())
+
+	var toc []euipoCollectedNode
+	if err := json.Unmarshal(entries["toc.json"], &toc); err != nil {
+		t.Fatalf("toc.json: %v", err)
+	}
+	pages := rp.recorded(http.MethodGet, func(u string) bool { return strings.Contains(u, "/api/page/") })
+	if len(toc) == 0 || len(pages) == 0 {
+		t.Fatalf("toc has %d nodes and %d pages; the section capture is empty", len(toc), len(pages))
+	}
+	// Every content page is archived byte for byte and referenced by a node.
+	pageIDs := map[string]bool{}
+	for _, n := range toc {
+		if n.Title == "" || n.ID == "" {
+			t.Errorf("toc node %+v lacks id or title", n)
+		}
+		if n.PageID != "" {
+			pageIDs[n.PageID] = true
+		}
+	}
+	for _, p := range pages {
+		id := p.URL[strings.LastIndex(p.URL, "/")+1:]
+		if !bytes.Equal(entries["page-"+id+".json"], rp.body(p)) {
+			t.Errorf("page %s missing or different in the archive", id)
+		}
+		if !pageIDs[id] {
+			t.Errorf("page %s is not referenced by any toc node", id)
+		}
+	}
+	if len(entries) != len(pages)+1 {
+		t.Errorf("archive has %d entries, want %d pages + toc.json", len(entries), len(pages))
+	}
+	// The section has nested nodes: their parent links must point inside it.
+	known := map[string]bool{euipoSection: true}
+	for _, n := range toc {
+		known[n.ID] = true
+	}
+	for _, n := range toc {
+		if !known[n.ParentID] {
+			t.Errorf("node %s has parent %s outside the section", n.ID, n.ParentID)
+		}
+	}
+}
+
+func TestReplayCrawlFollowsNestedRelativeLinks(t *testing.T) {
+	d := mpepChapter100()
+	a, rp := replayAdapter(t, "crawl-mpep", []dataset{d})
+	del, files := editionAndFiles(t, a, "mpep")
+	if !regexp.MustCompile(d.Discover.Crawl.EditionRe).MatchString(del.ExternalID + ".zip") {
+		t.Errorf("edition %q was not scraped from the index", del.ExternalID)
+	}
+	data, err := download(t, a, files[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	entries := zipEntries(t, data)
+
+	// Sections are linked only from the chapter page, relative to it.
+	index := rp.body(rp.recorded(http.MethodGet, func(u string) bool { return u == d.Discover.Crawl.IndexURL })[0])
+	var sections int
+	for name := range entries {
+		base := name[strings.LastIndex(name, "/")+1:]
+		if strings.HasPrefix(base, "s1") {
+			sections++
+			if bytes.Contains(index, []byte(`"`+base+`"`)) {
+				t.Errorf("section %s is linked from the index; it does not prove nested discovery", base)
+			}
+		}
+	}
+	if sections < 5 {
+		t.Fatalf("archive has %d chapter-100 sections, want them discovered via the chapter page: %v", sections, slices.Sorted(maps.Keys(entries)))
+	}
+	// SkipRe kept archived editions, the zip and PDFs out of the crawl.
+	skip := regexp.MustCompile(d.Discover.Crawl.SkipRe)
+	for _, ex := range rp.cap.Exchanges {
+		if skip.MatchString(ex.URL) {
+			t.Errorf("skipped URL was requested: %s", ex.URL)
+		}
+	}
+	for name := range entries {
+		if strings.Contains(name, "/old/") || strings.HasSuffix(name, ".zip.html") || strings.HasSuffix(name, ".pdf.html") {
+			t.Errorf("skipped resource archived: %s", name)
+		}
+	}
+}
+
+func TestReplayCrawlReportsArchiveBytes(t *testing.T) {
+	d := ipaChapter3()
+	a, _ := replayAdapter(t, "crawl-ipa", []dataset{d})
+	_, files := editionAndFiles(t, a, "ipa-patent")
+	var buf bytes.Buffer
+	var last, total int64 = -1, -1
+	err := a.DownloadFile(context.Background(), files[0], &buf, func(done, tot int64) {
+		if done < last {
+			t.Errorf("progress went backwards: %d after %d", done, last)
+		}
+		last, total = done, tot
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if last != int64(buf.Len()) {
+		t.Errorf("last progress = %d bytes, want the archive size %d", last, buf.Len())
+	}
+	if total != 0 {
+		t.Errorf("total = %d, want 0 (unknown up front)", total)
 	}
 }
