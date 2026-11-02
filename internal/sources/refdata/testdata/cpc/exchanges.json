@@ -1,0 +1,62 @@
+{
+  "capturedAt": "2026-11-02T05:22:57.98004Z",
+  "exchanges": [
+    {
+      "method": "GET",
+      "url": "https://www.cooperativepatentclassification.org/sites/default/files/cpc/bulk/CPCSchemeXML202611.zip",
+      "range": "bytes=0-0",
+      "status": 404,
+      "header": {
+        "Content-Type": "text/html; charset=UTF-8",
+        "Last-Modified": "Mon, 02 Nov 2026 05:13:04 GMT"
+      },
+      "body": "4a8b1a7b3c2295c7.html.gz"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.cooperativepatentclassification.org/sites/default/files/cpc/bulk/CPCSchemeXML202610.zip",
+      "range": "bytes=0-0",
+      "status": 404,
+      "header": {
+        "Content-Type": "text/html; charset=UTF-8",
+        "Last-Modified": "Mon, 02 Nov 2026 05:13:05 GMT"
+      },
+      "body": "3888f4846988613a.html.gz"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.cooperativepatentclassification.org/sites/default/files/cpc/bulk/CPCSchemeXML202609.zip",
+      "range": "bytes=0-0",
+      "status": 404,
+      "header": {
+        "Content-Type": "text/html; charset=UTF-8",
+        "Last-Modified": "Mon, 02 Nov 2026 05:13:05 GMT"
+      },
+      "body": "912b192db1e05554.html.gz"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.cooperativepatentclassification.org/sites/default/files/cpc/bulk/CPCSchemeXML202608.zip",
+      "range": "bytes=0-0",
+      "status": 206,
+      "header": {
+        "Content-Length": "1",
+        "Content-Range": "bytes 0-0/9916671",
+        "Content-Type": "application/zip",
+        "Last-Modified": "Wed, 08 Jul 2026 07:33:40 GMT"
+      },
+      "body": "5c62e091b8c0565f.zip.gz"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.cooperativepatentclassification.org/sites/default/files/cpc/bulk/CPCNoticeOfChangeXMLArtefact202608.zip",
+      "status": 200,
+      "header": {
+        "Content-Length": "12029",
+        "Content-Type": "application/zip",
+        "Last-Modified": "Wed, 08 Jul 2026 07:33:36 GMT"
+      },
+      "body": "a2084de9da9a9b90.zip.gz"
+    }
+  ]
+}

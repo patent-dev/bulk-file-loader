@@ -14,10 +14,6 @@ const (
 	// guidelines, which publish at non-formulaic edition strings but always
 	// link the current file from a stable page.
 	discoverPageLink
-	// discoverStableURL uses fixed file URLs that always point at the current
-	// edition; the edition string is derived from the Last-Modified header.
-	// Used for the EUIPO trade mark guidelines and the WIPO PCT documents.
-	discoverStableURL
 	// discoverCrawl produces a ZIP by crawling an HTML manual that has no bulk
 	// artifact. Used for the IP Australia manuals.
 	discoverCrawl
@@ -32,12 +28,12 @@ const (
 	// fetches each section's HTML page into a ZIP. Used for the EPO Unitary
 	// Patent Guidelines (a Next.js app).
 	discoverTokenFetch
-	// discoverIndexListing date-probes a directory's index.html (newest edition
+	// discoverIndexListing date-probes a directory listing (newest edition
 	// first) to find the current edition, then resolves each file's actual URL by
-	// matching the listing — the files carry a per-file generation-date suffix
+	// matching the listing. The files carry a per-file generation-date suffix
 	// (e.g. ncl-20240101-classification_texts-20250814.zip) that no fixed template
 	// can predict. Used for the WIPO Nice and Locarno master files, whose
-	// MasterFiles directory is an autoindex of dated zips.
+	// MasterFiles directory lists dated zips.
 	discoverIndexListing
 )
 
@@ -60,10 +56,10 @@ type datasetFile struct {
 	FileNameRe   string // discoverIndexListing: regexp matching this file's name in the listing
 }
 
-// indexSpec configures discoverIndexListing: a directory whose index.html lists
-// the edition's files as (absolute) links, probed newest-edition-first.
+// indexSpec configures discoverIndexListing: a directory listing that links
+// the edition's files, probed newest-edition-first.
 type indexSpec struct {
-	DirURLTemplate string // directory index URL, with the edition token, e.g. ".../{ed}/MasterFiles/"
+	DirURLTemplate string // directory listing URL, with the edition token, e.g. ".../{ed}/MasterFiles/"
 }
 
 // crawlSpec configures the HTML-manual crawler.
@@ -73,7 +69,6 @@ type crawlSpec struct {
 	SkipRe     string // optional: drop hrefs matching this regexp (e.g. archives, binaries)
 	EditionRe  string // optional: scrape the edition from the index page (one capture group); else Last-Modified
 	MaxPages   int    // hard cap on pages fetched
-	ZipName    string // output filename; may contain the edition token
 }
 
 // discoverSpec configures edition discovery for a dataset.
@@ -88,9 +83,6 @@ type discoverSpec struct {
 	// discoverPageLink
 	PageURL   string // landing page to scrape
 	EditionRe string // regexp with exactly one capture group = edition
-
-	// discoverStableURL: the edition is the Last-Modified date of ProbeRole's
-	// file (defaults to the first file when ProbeRole is empty).
 
 	// discoverCrawl
 	Crawl *crawlSpec
@@ -111,7 +103,6 @@ type apiSpec struct {
 	Language      string // publication language to select, e.g. "en"
 	TitleContains string // select the current (non-obsolete) publication by title
 	MaxNodes      int    // hard cap on toc nodes fetched
-	ZipName       string // output filename; may contain the edition token
 }
 
 // tokenSpec configures the EPO-Unitary-style "enumerate then fetch" acquisition:
@@ -123,7 +114,6 @@ type tokenSpec struct {
 	SeedToken string // page under BaseURL/{year}/ that lists all section tokens, e.g. "index"
 	TokenRe   string // matches section tokens in the seed page, e.g. section_[0-9_]+
 	MaxPages  int    // hard cap on section pages fetched
-	ZipName   string // output filename; may contain the edition token
 }
 
 // dataset is a single reference-data product: a logical set of files that share

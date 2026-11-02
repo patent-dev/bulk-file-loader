@@ -102,7 +102,7 @@ onUnmounted(() => {
 
 <template>
   <div
-    class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+    class="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
     @click="emit('close')"
   >
     <div
@@ -164,7 +164,7 @@ onUnmounted(() => {
                 <span
                   v-for="event in webhook.events"
                   :key="event"
-                  class="px-2 py-0.5 text-xs bg-gray-100 rounded"
+                  class="px-2 py-0.5 text-xs bg-gray-100 rounded-sm"
                 >
                   {{ event }}
                 </span>
@@ -225,7 +225,7 @@ onUnmounted(() => {
               <button
                 type="submit"
                 :disabled="saving"
-                class="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                class="px-4 py-2 text-sm bg-blue-600 text-white rounded-sm hover:bg-blue-700 disabled:opacity-50"
               >
                 {{ saving ? 'Creating...' : 'Create' }}
               </button>

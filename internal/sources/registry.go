@@ -10,6 +10,7 @@ import (
 
 	"github.com/patent-dev/bulk-file-loader/config"
 	"github.com/patent-dev/bulk-file-loader/internal/database"
+	"gorm.io/gorm/clause"
 )
 
 // Registry manages source adapters
@@ -176,7 +177,10 @@ func (r *Registry) UpdateSource(id string, enabled bool, credentials map[string]
 		CredentialsEnc: credentialsEnc,
 	}
 
-	return r.db.Save(&source).Error
+	return r.db.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "id"}},
+		DoUpdates: clause.AssignmentColumns([]string{"name", "enabled", "credentials_enc", "updated_at"}),
+	}).Create(&source).Error
 }
 
 // TestCredentials tests if the credentials for a source are valid

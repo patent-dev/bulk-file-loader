@@ -143,7 +143,7 @@ func (s *Scheduler) syncProduct(productID string) {
 				ExpectedChecksum:  fileInfo.Checksum,
 				ChecksumAlgorithm: fileInfo.ChecksumAlgorithm,
 				DownloadURI:       fileInfo.DownloadURI,
-				ReleasedAt:        &fileInfo.ReleasedAt,
+				ReleasedAt:        database.OptionalTime(fileInfo.ReleasedAt),
 			}
 
 			s.ensureDelivery(deliveryID, productID, &delivery)
@@ -191,7 +191,7 @@ func (s *Scheduler) ensureDelivery(deliveryID, productID string, info *sources.D
 		ProductID:   productID,
 		ExternalID:  info.ExternalID,
 		Name:        info.Name,
-		PublishedAt: &info.PublishedAt,
+		PublishedAt: database.OptionalTime(info.PublishedAt),
 		ExpiresAt:   info.ExpiresAt,
 	}
 	s.db.Create(delivery)

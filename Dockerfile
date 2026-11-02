@@ -1,5 +1,5 @@
 # Build frontend
-FROM node:20-alpine AS frontend-builder
+FROM node:26-alpine AS frontend-builder
 
 WORKDIR /app/web/ui
 COPY web/ui/package*.json ./
@@ -8,14 +8,14 @@ COPY web/ui/ ./
 RUN npm run build
 
 # Build backend
-FROM golang:1.26-alpine AS backend-builder
+FROM golang:1.27-alpine AS backend-builder
 
 RUN apk add --no-cache git
 
 WORKDIR /app
 
 # Install oapi-codegen
-RUN go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.6.0
+RUN go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.8.2
 
 # Copy go mod files
 COPY go.mod go.sum ./
@@ -36,7 +36,7 @@ ARG VERSION=dev
 RUN CGO_ENABLED=0 go build -ldflags="-s -w -X github.com/patent-dev/bulk-file-loader/cmd/bulk-file-loader.Version=${VERSION}" -o bulk-file-loader .
 
 # Runtime image
-FROM alpine:3.21
+FROM alpine:3.24
 
 RUN apk add --no-cache ca-certificates tzdata && \
     addgroup -S appgroup && adduser -S appuser -G appgroup

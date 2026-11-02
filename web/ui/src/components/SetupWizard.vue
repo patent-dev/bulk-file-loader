@@ -51,7 +51,7 @@ async function handleSetup() {
             id="passphrase"
             v-model="passphrase"
             type="password"
-            class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+            class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-xs focus:ring-blue-500 focus:border-blue-500"
             placeholder="Enter passphrase (min 8 characters)"
             required
           />
@@ -65,7 +65,7 @@ async function handleSetup() {
             id="confirm"
             v-model="confirmPassphrase"
             type="password"
-            class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+            class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-xs focus:ring-blue-500 focus:border-blue-500"
             placeholder="Confirm passphrase"
             required
           />
@@ -78,7 +78,7 @@ async function handleSetup() {
         <button
           type="submit"
           :disabled="loading"
-          class="w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+          class="w-full py-2 px-4 border border-transparent rounded-md shadow-xs text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
         >
           {{ loading ? 'Setting up...' : 'Set Passphrase' }}
         </button>

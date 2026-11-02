@@ -9,21 +9,48 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - db: sqlite
+          - db: mysql
+            dsn: 'root:test@tcp(127.0.0.1:3306)/'
+          - db: postgres
+            dsn: 'postgres://postgres:test@127.0.0.1:5432/postgres?sslmode=disable'
+    name: test (${{ matrix.db }})
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: test
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd "mysqladmin ping -ptest"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s --health-timeout 5s --health-retries 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
-          go-version: '1.26'
+          go-version: '1.27'
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: '20'
+          node-version: '26'
 
       - name: Install oapi-codegen
-        run: go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.6.0
+        run: go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.8.2
 
       - name: Generate API code
         run: |
@@ -38,6 +65,9 @@ jobs:
           npm run build
 
       - name: Run tests
+        env:
+          BULK_LOADER_TEST_DB_DRIVER: ${{ matrix.db }}
+          BULK_LOADER_TEST_DB_DSN: ${{ matrix.dsn }}
         run: go test -v ./...
 
       - name: Run go vet
@@ -46,12 +76,12 @@ jobs:
   frontend:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: '20'
+          node-version: '26'
           cache: 'npm'
           cache-dependency-path: web/ui/package-lock.json
 

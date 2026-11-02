@@ -3,6 +3,7 @@ package refdata
 import (
 	"archive/zip"
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
 	"regexp"
@@ -55,12 +56,16 @@ func (a *Adapter) fetchTokenPages(ctx context.Context, spec *tokenSpec, dst io.W
 		return sources.NewAdapterError(sources.ErrCodeNotFound, "no section tokens found on seed page", nil)
 	}
 
+	// The cap is set above the manual's real size, so exceeding it means the
+	// manual grew unexpectedly; fail rather than ship a truncated archive.
+	if spec.MaxPages > 0 && len(tokens) > spec.MaxPages {
+		return sources.NewAdapterError(sources.ErrCodeNetwork,
+			fmt.Sprintf("seed page lists %d sections, above the %d-page cap: manual would be incomplete", len(tokens), spec.MaxPages), nil)
+	}
+
 	zw := zip.NewWriter(dst)
 	var fetched, skipped int
 	for i, tok := range tokens {
-		if i >= spec.MaxPages {
-			break
-		}
 		if err := ctx.Err(); err != nil {
 			_ = zw.Close()
 			return err
@@ -68,7 +73,7 @@ func (a *Adapter) fetchTokenPages(ctx context.Context, spec *tokenSpec, dst io.W
 		body, err := a.getBodyTimed(ctx, base+tok, maxPageBytes)
 		if err != nil {
 			// Tolerate an individual unreachable page rather than failing the
-			// whole manual, matching the HTML crawler.
+			// whole manual, matching the HTML crawler (bounded below).
 			skipped++
 			slog.Warn("token-fetch: skipping unreachable section", "source", a.id, "token", tok, "error", err)
 			continue
@@ -84,6 +89,11 @@ func (a *Adapter) fetchTokenPages(ctx context.Context, spec *tokenSpec, dst io.W
 	if fetched == 0 {
 		_ = zw.Close()
 		return sources.NewAdapterError(sources.ErrCodeNetwork, "no section pages fetched", nil)
+	}
+	if skipped > maxSkippedPages(fetched) {
+		_ = zw.Close()
+		return sources.NewAdapterError(sources.ErrCodeNetwork,
+			fmt.Sprintf("token-fetch skipped %d of %d sections: manual likely incomplete", skipped, fetched+skipped), nil)
 	}
 	if skipped > 0 {
 		slog.Info("token-fetch: completed with skipped sections", "source", a.id, "fetched", fetched, "skipped", skipped)

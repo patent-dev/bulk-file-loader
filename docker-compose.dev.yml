@@ -33,7 +33,7 @@ services:
 
   # Frontend dev server with hot module replacement
   bulk-loader-ui:
-    image: node:20-alpine
+    image: node:26-alpine
     container_name: bulk-loader-ui-dev
     working_dir: /app
     command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 5173"

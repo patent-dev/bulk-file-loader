@@ -14,6 +14,7 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"net/url"
 	"path"
 	"regexp"
 	"strings"
@@ -22,9 +23,8 @@ import (
 	"github.com/patent-dev/bulk-file-loader/internal/sources"
 )
 
-// listingHrefRe extracts link targets from a directory autoindex page. Unlike
-// the crawler's hrefRe it tolerates UNQUOTED hrefs, which the WIPO master-file
-// autoindex emits (href=https://…/ncl-….zip>).
+// listingHrefRe extracts link targets from a directory listing page. Unlike
+// the crawler's hrefRe it also tolerates unquoted hrefs (href=https://.../x.zip>).
 var listingHrefRe = regexp.MustCompile(`(?i)href=["']?([^"' >]+)`)
 
 const (
@@ -153,7 +153,7 @@ func (a *Adapter) FetchDeliveries(ctx context.Context, productID string) ([]sour
 
 // FetchFiles builds the file list for a dataset edition. For most datasets no
 // network access is needed: file URLs are derived from the edition by template
-// substitution. discoverIndexListing datasets are the exception — their file
+// substitution. discoverIndexListing datasets are the exception: their file
 // names carry an unpredictable generation-date suffix, so the actual URLs are
 // resolved from the directory listing.
 func (a *Adapter) FetchFiles(ctx context.Context, productID, deliveryID string) ([]sources.FileInfo, error) {
@@ -189,8 +189,8 @@ func (a *Adapter) FetchFiles(ctx context.Context, productID, deliveryID string) 
 
 // listingFiles resolves a discoverIndexListing dataset's files by fetching the
 // edition's directory index and matching each declared file's FileNameRe against
-// the listed links. The matched (absolute) link is the download URL and its base
-// name is the stored file name. A declared file with no match is an error, so a
+// the listed links. The matched link, resolved against the listing URL, is the
+// download URL and its base name is the stored file name. A declared file with no match is an error, so a
 // missing master file fails loudly rather than importing a partial edition.
 func (a *Adapter) listingFiles(ctx context.Context, d *dataset, edition string) ([]sources.FileInfo, error) {
 	dirURL := subst(d.Discover.Index.DirURLTemplate, edition)
@@ -198,9 +198,17 @@ func (a *Adapter) listingFiles(ctx context.Context, d *dataset, edition string) 
 	if err != nil {
 		return nil, err
 	}
+	base, err := url.Parse(dirURL)
+	if err != nil {
+		return nil, sources.NewAdapterError(sources.ErrCodeInvalidConfig, "bad listing URL: "+dirURL, err)
+	}
 	var links []string
 	for _, m := range listingHrefRe.FindAllStringSubmatch(string(body), -1) {
-		links = append(links, m[1])
+		ref, err := url.Parse(m[1])
+		if err != nil {
+			continue
+		}
+		links = append(links, base.ResolveReference(ref).String())
 	}
 
 	result := make([]sources.FileInfo, 0, len(d.Files))

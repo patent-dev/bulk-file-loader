@@ -101,7 +101,7 @@ async function saveConfig(enabled: boolean) {
 
 <template>
   <div
-    class="bg-white rounded-lg shadow p-4 cursor-pointer transition-all"
+    class="bg-white rounded-lg shadow-sm p-4 cursor-pointer transition-all"
     :class="{ 'ring-2 ring-blue-500': selected }"
     @click="emit('select')"
   >
@@ -133,7 +133,7 @@ async function saveConfig(enabled: boolean) {
     <Teleport to="body">
       <div
         v-if="showConfig"
-        class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+        class="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
         @click="showConfig = false"
       >
         <div
@@ -158,7 +158,7 @@ async function saveConfig(enabled: boolean) {
                 :id="field.key"
                 v-model="credentials[field.key]"
                 :type="field.type"
-                class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-xs focus:ring-blue-500 focus:border-blue-500"
                 :placeholder="field.helpText"
               />
             </div>
@@ -190,7 +190,7 @@ async function saveConfig(enabled: boolean) {
                 <button
                   type="submit"
                   :disabled="saving"
-                  class="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                  class="px-4 py-2 text-sm bg-blue-600 text-white rounded-sm hover:bg-blue-700 disabled:opacity-50"
                 >
                   {{ saving ? 'Saving...' : 'Save & Enable' }}
                 </button>

@@ -63,12 +63,23 @@ Environment variables:
 | `BULK_LOADER_PORT` | 8080 | HTTP port |
 | `BULK_LOADER_DATA_DIR` | ./data | Data directory |
 | `BULK_LOADER_DB_DRIVER` | sqlite | Database driver (sqlite, postgres, mysql) |
-| `BULK_LOADER_DB_DSN` | - | Database connection string (required for postgres/mysql) |
+| `BULK_LOADER_DB_DSN` | - | Database connection string (required for postgres/mysql), e.g. `postgres://user:pass@host:5432/db` or `user:pass@tcp(host:3306)/db` |
 | `BULK_LOADER_DOWNLOAD_TIMEOUT` | 3600 | Per-file download timeout in seconds |
 | `BULK_LOADER_MAX_CONCURRENT` | 3 | Maximum concurrent downloads |
 | `BULK_LOADER_DEV_MODE` | false | Debug logging, verbose SQL, non-secure cookies, Vite proxy (do not use in production) |
 | `BULK_LOADER_TRUSTED_PROXIES` | - | Comma-separated IPs/CIDRs whose `X-Forwarded-Proto` is honored when setting the cookie `Secure` flag |
 | `BULK_LOADER_INSECURE_COOKIE` | false | Drop the `Secure` cookie flag. For HTTP-only LAN use; never on the public internet |
+
+### Running the tests against PostgreSQL or MySQL
+
+`go test ./...` uses SQLite by default. Point the suite at a server to run every database test against it; each test creates and drops its own database, so the user needs `CREATE DATABASE` rights:
+
+```
+BULK_LOADER_TEST_DB_DRIVER=mysql BULK_LOADER_TEST_DB_DSN='root:pass@tcp(127.0.0.1:3306)/' go test ./...
+BULK_LOADER_TEST_DB_DRIVER=postgres BULK_LOADER_TEST_DB_DSN='postgres://postgres:pass@127.0.0.1:5432/postgres?sslmode=disable' go test ./...
+```
+
+The reference-data tests replay HTTP exchanges recorded from the real sources (`internal/sources/refdata/testdata`). Re-record them with `REFDATA_CAPTURE=1 go test ./internal/sources/refdata/ -run TestCapture`, or run the live checks with `REFDATA_LIVE=1 go test ./internal/sources/refdata/ -run Live`.
 
 ### Behind a reverse proxy
 

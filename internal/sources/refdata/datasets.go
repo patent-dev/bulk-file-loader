@@ -6,12 +6,12 @@ package refdata
 
 const (
 	cpcBulk    = "https://www.cooperativepatentclassification.org/sites/default/files/cpc/bulk/"
-	ipcMasters = "https://www.wipo.int/ipc/itos4ipc/ITSupport_and_download_area//{ed}/MasterFiles/"
+	ipcMasters = "https://www.wipo.int/classifications/data/ipc/ITSupport_and_download_area/{ed}/MasterFiles/"
 	usptoDocs  = "https://www.uspto.gov/sites/default/files/documents/"
-	// WIPO Nice (NCL) and Locarno (LOC) master-file directory indexes. Both are
-	// autoindex listings of dated zips, probed annually (Jan 1) newest-first.
-	niceMasters = "https://www.wipo.int/nice/its4nice/ITSupport_and_download_area/{ed}/MasterFiles/index.html"
-	locMasters  = "https://www.wipo.int/classifications/locarno/its4loc/ITSupport_and_download_area/{ed}/MasterFiles/index.html"
+	// WIPO Nice (NCL) and Locarno (LOC) master-file directory listings of dated
+	// zips, probed annually (Jan 1) newest-first.
+	niceMasters = "https://www.wipo.int/classifications/data/nice/ITSupport_and_download_area/{ed}/MasterFiles/"
+	locMasters  = "https://www.wipo.int/classifications/data/locarno/ITSupport_and_download_area/{ed}/MasterFiles/"
 )
 
 // classificationDatasets returns CPC and IPC. Both pull the definition
@@ -105,7 +105,6 @@ func classificationDatasets() []dataset {
 					LinkPrefix: "/cache/classify/patent/PMGS_HTML/jpp/F_TERM/en/",
 					SkipRe:     `(?i)(/ja/|\.(css|js|png|gif|jpe?g|ico|svg)$)`,
 					MaxPages:   6000,
-					ZipName:    "jp-fterm-{ed}.zip",
 				},
 			},
 		},
@@ -131,7 +130,6 @@ func manualDatasets() []dataset {
 					SkipRe:     `(?i)(/old/|\.(zip|pdf|jpe?g|png|gif|css|js)$)`,
 					EditionRe:  `(e\d+r-[0-9-]+)\.zip`,
 					MaxPages:   2000,
-					ZipName:    "mpep-{ed}.zip",
 				},
 			},
 		},
@@ -164,7 +162,6 @@ func manualDatasets() []dataset {
 					Language:      "en",
 					TitleContains: "trade mark guidelines",
 					MaxNodes:      8000,
-					ZipName:       "euipo-tm-{ed}.zip",
 				},
 			},
 		},
@@ -183,7 +180,6 @@ func manualDatasets() []dataset {
 					LinkPrefix: "/en/web/pct-system/texts/ispe/",
 					SkipRe:     `(?i)\.(pdf|zip|jpe?g|png|gif|css|js)$`,
 					MaxPages:   300,
-					ZipName:    "wipo-ispe-{ed}.zip",
 				},
 			},
 		},
@@ -203,14 +199,13 @@ func manualDatasets() []dataset {
 					SkipRe:     `(?i)(/archive|/consultation|/responses|/revision-cycle|\.(pdf|zip|jpe?g|png|gif|css|js)$)`,
 					EditionRe:  `guidelines-epc/(\d{4})/`,
 					MaxPages:   6000,
-					ZipName:    "epo-epc-{ed}.zip",
 				},
 			},
 		},
 		{
 			ID:            "epo-pct",
 			Name:          "EPO Guidelines for Search and Examination as PCT Authority",
-			Description:   "EPO PCT-EPO Guidelines. Same server-rendered per-section HTML as the EPC guidelines, crawled into a ZIP. (The Unitary Patent Guidelines are a JS app — not HTML-crawlable — and are handled with the JSON/JS sources.)",
+			Description:   "EPO PCT-EPO Guidelines. Same server-rendered per-section HTML as the EPC guidelines, crawled into a ZIP.",
 			CheckSchedule: "0 7 * * 1",
 			Files: []datasetFile{
 				{Role: "manual", NameTemplate: "epo-pct-{ed}.zip"},
@@ -223,7 +218,6 @@ func manualDatasets() []dataset {
 					SkipRe:     `(?i)(/archive|/consultation|/responses|/revision-cycle|\.(pdf|zip|jpe?g|png|gif|css|js)$)`,
 					EditionRe:  `guidelines-pct/(\d{4})/`,
 					MaxPages:   6000,
-					ZipName:    "epo-pct-{ed}.zip",
 				},
 			},
 		},
@@ -243,7 +237,6 @@ func manualDatasets() []dataset {
 					SeedToken: "index",
 					TokenRe:   `section_[0-9_]+`,
 					MaxPages:  1000,
-					ZipName:   "epo-up-{ed}.zip",
 				},
 			},
 		},
@@ -261,7 +254,6 @@ func manualDatasets() []dataset {
 					IndexURL:   "https://manuals.ipaustralia.gov.au/patent",
 					LinkPrefix: "/patent/",
 					MaxPages:   1500,
-					ZipName:    "ipa-patent-manual-{ed}.zip",
 				},
 			},
 		},
@@ -279,7 +271,6 @@ func manualDatasets() []dataset {
 					IndexURL:   "https://manuals.ipaustralia.gov.au/trademark",
 					LinkPrefix: "/trademark/",
 					MaxPages:   1500,
-					ZipName:    "ipa-trade-marks-manual-{ed}.zip",
 				},
 			},
 		},

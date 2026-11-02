@@ -10,22 +10,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ncruces/go-sqlite3/gormlite"
 	"github.com/patent-dev/bulk-file-loader/internal/database"
-	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
+	"github.com/patent-dev/bulk-file-loader/internal/database/dbtest"
 )
 
 func setupTestDB(t *testing.T) *database.DB {
 	t.Helper()
-	gormDB, err := gorm.Open(gormlite.Open(":memory:"), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Silent),
-	})
+	db, err := database.New(dbtest.Config(t))
 	if err != nil {
 		t.Fatal(err)
 	}
-	_ = gormDB.AutoMigrate(&database.Webhook{})
-	return &database.DB{DB: gormDB}
+	t.Cleanup(func() { _ = db.Close() })
+	return db
 }
 
 func TestCreateWebhook(t *testing.T) {

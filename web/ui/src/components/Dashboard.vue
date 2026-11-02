@@ -410,7 +410,7 @@ onUnmounted(() => {
 <template>
   <div class="min-h-screen bg-gray-50 flex flex-col">
     <!-- Header -->
-    <header class="bg-white shadow-sm">
+    <header class="bg-white shadow-xs">
       <div class="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8 flex justify-between items-center">
         <div class="flex items-center space-x-3">
           <img src="/logo.svg" alt="patent.dev" class="h-7" />
@@ -439,22 +439,22 @@ onUnmounted(() => {
     <main class="w-full max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
       <!-- Stats Overview -->
       <div v-if="stats" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <div class="bg-white rounded-lg shadow p-4">
+        <div class="bg-white rounded-lg shadow-sm p-4">
           <div class="text-sm text-gray-500">Total Files</div>
           <div class="text-2xl font-bold">{{ stats.totalFiles }}</div>
         </div>
-        <div class="bg-white rounded-lg shadow p-4">
+        <div class="bg-white rounded-lg shadow-sm p-4">
           <div class="text-sm text-gray-500">Downloaded</div>
           <div class="text-2xl font-bold text-green-600">{{ stats.downloadedFiles }}</div>
         </div>
         <div
-          class="bg-white rounded-lg shadow p-4 cursor-pointer hover:shadow-md transition-shadow"
+          class="bg-white rounded-lg shadow-sm p-4 cursor-pointer hover:shadow-md transition-shadow"
           @click="showPendingFiles = true"
         >
           <div class="text-sm text-gray-500">Pending</div>
           <div class="text-2xl font-bold text-yellow-600">{{ stats.pendingFiles }}</div>
         </div>
-        <div class="bg-white rounded-lg shadow p-4">
+        <div class="bg-white rounded-lg shadow-sm p-4">
           <div class="text-sm text-gray-500">Active Downloads</div>
           <div class="text-2xl font-bold text-blue-600">{{ stats.activeDownloads }}</div>
         </div>
@@ -526,7 +526,7 @@ onUnmounted(() => {
           Back to products
         </button>
         <div v-if="loadingProducts" class="text-gray-500">Loading products...</div>
-        <div v-else-if="products.length === 0" class="bg-white rounded-lg shadow p-4 text-gray-500">
+        <div v-else-if="products.length === 0" class="bg-white rounded-lg shadow-sm p-4 text-gray-500">
           <div class="flex items-center justify-center gap-2">
             <svg class="animate-spin h-4 w-4 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -540,13 +540,13 @@ onUnmounted(() => {
           <div
             v-for="product in products.filter(p => p.id === selectedProductId)"
             :key="product.id"
-            class="bg-white rounded-lg shadow p-4 ring-2 ring-blue-500 bg-blue-50"
+            class="bg-white rounded-lg shadow-sm p-4 ring-2 ring-blue-500 bg-blue-50"
           >
             <div class="flex items-start justify-between">
               <div class="font-medium text-gray-900 flex-1">{{ product.name }}</div>
               <button
                 @click="toggleAutoDownload(product, $event)"
-                class="ml-2 flex items-center gap-1.5 px-2 py-1 text-xs rounded border transition-colors cursor-pointer"
+                class="ml-2 flex items-center gap-1.5 px-2 py-1 text-xs rounded-sm border transition-colors cursor-pointer"
                 :class="product.autoDownload
                   ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
                   : 'bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100'"
@@ -557,7 +557,7 @@ onUnmounted(() => {
                   :class="product.autoDownload ? 'bg-green-500' : 'bg-gray-300'"
                 >
                   <span
-                    class="absolute top-0.5 w-2 h-2 rounded-full bg-white shadow transition-transform"
+                    class="absolute top-0.5 w-2 h-2 rounded-full bg-white shadow-sm transition-transform"
                     :class="product.autoDownload ? 'right-0.5' : 'left-0.5'"
                   ></span>
                 </span>
@@ -572,7 +572,7 @@ onUnmounted(() => {
               <select
                 @change="updateSchedule(product.id, ($event.target as HTMLSelectElement).value)"
                 @click.stop
-                class="text-xs border border-gray-300 rounded px-2 py-1"
+                class="text-xs border border-gray-300 rounded-sm px-2 py-1"
               >
                 <option value="0 6 * * *" :selected="product.checkWindowStart === '0 6 * * *'">Daily (6 AM)</option>
                 <option value="0 6 * * TUE" :selected="product.checkWindowStart === '0 6 * * TUE'">Tuesdays (6 AM)</option>
@@ -595,7 +595,7 @@ onUnmounted(() => {
               v-model="productSearch"
               type="text"
               placeholder="Search products..."
-              class="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              class="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
             <div class="flex items-center gap-2">
               <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -619,7 +619,7 @@ onUnmounted(() => {
               </div>
             </div>
           </div>
-          <div v-if="filteredProducts.length === 0" class="bg-white rounded-lg shadow p-4 text-gray-500">
+          <div v-if="filteredProducts.length === 0" class="bg-white rounded-lg shadow-sm p-4 text-gray-500">
             No products match {{ productSearch ? `"${productSearch}"` : 'the current filter' }}
           </div>
           <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -627,13 +627,13 @@ onUnmounted(() => {
               v-for="product in filteredProducts"
               :key="product.id"
               @click="selectProduct(product.id); productSearch = ''"
-              class="bg-white rounded-lg shadow p-4 cursor-pointer transition-all hover:shadow-md"
+              class="bg-white rounded-lg shadow-sm p-4 cursor-pointer transition-all hover:shadow-md"
             >
               <div class="flex items-start justify-between">
                 <div class="font-medium text-gray-900 flex-1">{{ product.name }}</div>
                 <button
                   @click="toggleAutoDownload(product, $event)"
-                  class="ml-2 flex items-center gap-1.5 px-2 py-1 text-xs rounded border transition-colors cursor-pointer"
+                  class="ml-2 flex items-center gap-1.5 px-2 py-1 text-xs rounded-sm border transition-colors cursor-pointer"
                   :class="product.autoDownload
                     ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
                     : 'bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100'"
@@ -644,7 +644,7 @@ onUnmounted(() => {
                     :class="product.autoDownload ? 'bg-green-500' : 'bg-gray-300'"
                   >
                     <span
-                      class="absolute top-0.5 w-2 h-2 rounded-full bg-white shadow transition-transform"
+                      class="absolute top-0.5 w-2 h-2 rounded-full bg-white shadow-sm transition-transform"
                       :class="product.autoDownload ? 'right-0.5' : 'left-0.5'"
                     ></span>
                   </span>
@@ -659,7 +659,7 @@ onUnmounted(() => {
             </div>
             <div v-if="product.totalFiles" class="flex items-center gap-2 mt-2 text-xs">
               <span class="text-gray-500">{{ product.downloadedFiles || 0 }}/{{ product.totalFiles }}</span>
-              <span v-if="product.failedFiles" class="px-1.5 py-0.5 bg-red-100 text-red-600 rounded">{{ product.failedFiles }} failed</span>
+              <span v-if="product.failedFiles" class="px-1.5 py-0.5 bg-red-100 text-red-600 rounded-sm">{{ product.failedFiles }} failed</span>
             </div>
           </div>
         </div>
@@ -676,7 +676,7 @@ onUnmounted(() => {
       </section>
 
       <!-- Placeholder when no product selected -->
-      <section v-else-if="selectedSourceId && selectedSourceEnabled && products.length > 0" class="bg-white rounded-lg shadow p-8 text-center text-gray-500">
+      <section v-else-if="selectedSourceId && selectedSourceEnabled && products.length > 0" class="bg-white rounded-lg shadow-sm p-8 text-center text-gray-500">
         Select a product above to see available files
       </section>
     </main>

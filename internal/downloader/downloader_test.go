@@ -3,18 +3,15 @@ package downloader
 import (
 	"context"
 	"io"
-	"path/filepath"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/ncruces/go-sqlite3/gormlite"
 	"github.com/patent-dev/bulk-file-loader/config"
 	"github.com/patent-dev/bulk-file-loader/internal/database"
+	"github.com/patent-dev/bulk-file-loader/internal/database/dbtest"
 	"github.com/patent-dev/bulk-file-loader/internal/hooks"
 	"github.com/patent-dev/bulk-file-loader/internal/sources"
-	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 )
 
 type mockAdapter struct {
@@ -48,23 +45,12 @@ func (m *mockAdapter) DownloadFile(ctx context.Context, file sources.FileInfo, w
 func setupTestEnv(t *testing.T) (*database.DB, *sources.Registry, *hooks.Manager, *config.Config) {
 	t.Helper()
 
-	dbPath := filepath.Join(t.TempDir(), "test.db")
-	gormDB, err := gorm.Open(gormlite.Open(dbPath+"?_journal_mode=WAL&_busy_timeout=5000"), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Silent),
-	})
+	db, err := database.New(dbtest.Config(t))
 	if err != nil {
 		t.Fatal(err)
 	}
-	_ = gormDB.AutoMigrate(
-		&database.Source{},
-		&database.Product{},
-		&database.Delivery{},
-		&database.File{},
-		&database.DownloadEntry{},
-		&database.Webhook{},
-	)
+	t.Cleanup(func() { _ = db.Close() })
 
-	db := &database.DB{DB: gormDB}
 	cfg := &config.Config{
 		DataDir:         t.TempDir(),
 		MaxConcurrent:   2,

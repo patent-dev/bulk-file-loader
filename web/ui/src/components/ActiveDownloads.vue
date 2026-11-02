@@ -17,7 +17,7 @@ async function cancelDownload(fileId: string) {
 </script>
 
 <template>
-  <div class="bg-white rounded-lg shadow">
+  <div class="bg-white rounded-lg shadow-sm">
     <div v-if="downloads.length === 0" class="p-4 text-gray-500 text-center">
       No active downloads
     </div>

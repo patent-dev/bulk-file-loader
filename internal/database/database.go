@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 
-	_ "github.com/ncruces/go-sqlite3/embed"
+	mysqldriver "github.com/go-sql-driver/mysql"
 	"github.com/ncruces/go-sqlite3/gormlite"
 	"github.com/patent-dev/bulk-file-loader/config"
 	"gorm.io/driver/mysql"
@@ -33,7 +33,13 @@ func New(cfg *config.Config) (*DB, error) {
 		if cfg.DBDSN == "" {
 			return nil, fmt.Errorf("BULK_LOADER_DB_DSN is required for mysql")
 		}
-		dialector = mysql.Open(cfg.DBDSN)
+		mc, err := mysqldriver.ParseDSN(cfg.DBDSN)
+		if err != nil {
+			return nil, fmt.Errorf("invalid mysql dsn: %w", err)
+		}
+		// Timestamps are scanned into time.Time, which requires parseTime.
+		mc.ParseTime = true
+		dialector = mysql.Open(mc.FormatDSN())
 	default:
 		return nil, fmt.Errorf("unsupported database driver: %s", cfg.DBDriver)
 	}
@@ -83,7 +89,7 @@ func runMigrations(db *gorm.DB) error {
 
 func (db *DB) GetSetting(key string) (string, error) {
 	var setting Setting
-	if err := db.Where("key = ?", key).First(&setting).Error; err != nil {
+	if err := db.Where(&Setting{Key: key}).First(&setting).Error; err != nil {
 		return "", err
 	}
 	return setting.Value, nil
@@ -95,6 +101,15 @@ func (db *DB) SetSetting(key, value string) error {
 
 func (db *DB) HasSetting(key string) bool {
 	var count int64
-	db.Model(&Setting{}).Where("key = ?", key).Count(&count)
+	db.Model(&Setting{}).Where(&Setting{Key: key}).Count(&count)
 	return count > 0
+}
+
+// Close closes the underlying connection pool.
+func (db *DB) Close() error {
+	sqlDB, err := db.DB.DB()
+	if err != nil {
+		return err
+	}
+	return sqlDB.Close()
 }

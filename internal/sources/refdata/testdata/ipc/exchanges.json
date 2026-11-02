@@ -1,0 +1,29 @@
+{
+  "capturedAt": "2026-11-02T05:23:00.831865Z",
+  "exchanges": [
+    {
+      "method": "GET",
+      "url": "https://www.wipo.int/classifications/data/ipc/ITSupport_and_download_area/20260101/MasterFiles/ipc_scheme_20260101.zip",
+      "range": "bytes=0-0",
+      "status": 206,
+      "header": {
+        "Content-Length": "1",
+        "Content-Range": "bytes 0-0/4908682",
+        "Content-Type": "application/zip",
+        "Last-Modified": "Mon, 20 Apr 2026 12:59:44 GMT"
+      },
+      "body": "5c62e091b8c0565f.zip.gz"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.wipo.int/classifications/data/ipc/ITSupport_and_download_area/20260101/MasterFiles/ipc_concordancelist_20260101.zip",
+      "status": 200,
+      "header": {
+        "Content-Length": "5405",
+        "Content-Type": "application/zip",
+        "Last-Modified": "Mon, 20 Apr 2026 12:59:44 GMT"
+      },
+      "body": "f6aa2e89e264e352.zip.gz"
+    }
+  ]
+}

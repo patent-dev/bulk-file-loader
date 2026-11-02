@@ -107,3 +107,12 @@ const (
 	SettingPassphraseSalt = "passphrase_salt"
 	SettingEncryptionSalt = "encryption_salt"
 )
+
+// OptionalTime returns nil for the zero time so it is stored as NULL.
+// MySQL in strict mode rejects the zero date.
+func OptionalTime(t time.Time) *time.Time {
+	if t.IsZero() {
+		return nil
+	}
+	return &t
+}

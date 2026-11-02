@@ -24,8 +24,6 @@ func (a *Adapter) resolveEdition(ctx context.Context, d *dataset) (string, time.
 		return a.resolveByDateProbe(mctx, d)
 	case discoverPageLink:
 		return a.resolveByPageLink(mctx, d)
-	case discoverStableURL:
-		return a.resolveByStableURL(mctx, d)
 	case discoverCrawl:
 		return a.resolveCrawlEdition(mctx, d)
 	case discoverJSONAPI:
@@ -107,28 +105,6 @@ func (a *Adapter) resolveByPageLink(ctx context.Context, d *dataset) (string, ti
 	return string(m[1]), time.Time{}, nil
 }
 
-// resolveByStableURL derives the edition from the Last-Modified header of a
-// fixed file URL.
-func (a *Adapter) resolveByStableURL(ctx context.Context, d *dataset) (string, time.Time, error) {
-	pf := fileByRole(d, d.Discover.ProbeRole)
-	if pf == nil {
-		return "", time.Time{}, sources.NewAdapterError(sources.ErrCodeInvalidConfig, "probe file not found for "+d.ID, nil)
-	}
-	ok, lastmod, err := a.probe(ctx, pf.URLTemplate)
-	if err != nil {
-		return "", time.Time{}, err
-	}
-	if !ok {
-		return "", time.Time{}, sources.NewAdapterError(sources.ErrCodeNotFound, "file not available for "+d.ID, nil)
-	}
-	if !lastmod.IsZero() {
-		return lastmod.UTC().Format("20060102"), lastmod, nil
-	}
-	// No Last-Modified: fall back to the current date so re-downloads are
-	// bounded to once per day rather than every check.
-	return a.now().UTC().Format("20060102"), time.Time{}, nil
-}
-
 // resolveCrawlEdition derives an edition for a crawled manual from the index
 // page's Last-Modified header, falling back to the current month.
 func (a *Adapter) resolveCrawlEdition(ctx context.Context, d *dataset) (string, time.Time, error) {
@@ -183,9 +159,10 @@ func (a *Adapter) dateCandidates(step stepKind, maxBack int) []string {
 }
 
 // probe issues a single-byte ranged GET to test whether a URL exists without
-// downloading it, returning the parsed Last-Modified time when present. A 2xx
-// status means it exists; 404/410 mean it genuinely does not. A 403/401 is NOT
-// treated as "absent" — WAFs (EPO/WIPO/CPC) return 403 to bots, and silently
+// downloading it, returning the parsed Last-Modified time when present. A 200 or
+// 206 means it exists; 404/410 mean it genuinely does not. Other 2xx statuses
+// (a WAF's 202 challenge) prove nothing and are surfaced as errors. A 403/401 is NOT
+// treated as "absent": WAFs (EPO/WIPO/CPC) return 403 to bots, and silently
 // bucketing that as not-found makes date-probe discovery walk back to a stale
 // edition with no error. Such statuses, and anything unexpected, are surfaced.
 func (a *Adapter) probe(ctx context.Context, url string) (bool, time.Time, error) {
@@ -202,16 +179,14 @@ func (a *Adapter) probe(ctx context.Context, url string) (bool, time.Time, error
 	}
 	defer drainClose(resp.Body)
 
-	switch {
-	case resp.StatusCode >= 200 && resp.StatusCode < 300:
+	switch resp.StatusCode {
+	case http.StatusOK, http.StatusPartialContent:
 		return true, parseLastModified(resp.Header.Get("Last-Modified")), nil
-	case resp.StatusCode == http.StatusNotFound,
-		resp.StatusCode == http.StatusGone:
+	case http.StatusNotFound, http.StatusGone:
 		return false, time.Time{}, nil
-	case resp.StatusCode == http.StatusForbidden,
-		resp.StatusCode == http.StatusUnauthorized:
+	case http.StatusForbidden, http.StatusUnauthorized:
 		return false, time.Time{}, sources.NewAdapterError(sources.ErrCodeAuth,
-			fmt.Sprintf("access denied (%d) probing %s — likely a WAF block; not treating as a missing edition", resp.StatusCode, url), nil)
+			fmt.Sprintf("access denied (%d) probing %s (likely a WAF block); not treating as a missing edition", resp.StatusCode, url), nil)
 	default:
 		return false, time.Time{}, sources.NewAdapterError(sources.ErrCodeNetwork,
 			fmt.Sprintf("unexpected status %d probing %s", resp.StatusCode, url), nil)

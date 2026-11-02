@@ -106,7 +106,7 @@ onUnmounted(() => {
 <template>
   <Teleport to="body">
     <div
-      class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+      class="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
       @click="emit('close')"
     >
       <div
@@ -120,7 +120,7 @@ onUnmounted(() => {
             <button
               v-if="files.length > 0"
               @click="downloadAll"
-              class="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+              class="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-sm hover:bg-blue-700"
             >
               Download All ({{ files.length }})
             </button>
@@ -148,7 +148,7 @@ onUnmounted(() => {
                 <div
                   v-for="file in productFiles"
                   :key="file.id"
-                  class="flex items-center justify-between bg-gray-50 rounded p-3"
+                  class="flex items-center justify-between bg-gray-50 rounded-sm p-3"
                 >
                   <div class="flex-1 min-w-0 mr-3">
                     <div class="text-sm font-medium text-gray-900 truncate">{{ file.fileName }}</div>

@@ -1,0 +1,61 @@
+{
+  "capturedAt": "2026-11-02T05:23:15.19267Z",
+  "exchanges": [
+    {
+      "method": "GET",
+      "url": "https://www.epo.org/en/legal/guidelines-up",
+      "status": 200,
+      "header": {
+        "Content-Type": "text/html; charset=utf-8",
+        "Last-Modified": "Sun, 01 Nov 2026 18:06:52 GMT"
+      },
+      "body": "733a027306d834d9.html.gz"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.epo.org/en/legal/guidelines-up",
+      "status": 200,
+      "header": {
+        "Content-Type": "text/html; charset=utf-8",
+        "Last-Modified": "Sun, 01 Nov 2026 18:06:52 GMT"
+      },
+      "body": "2db9633dfc4c862a.html.gz"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.epo.org/en/legal/guidelines-up/2026/index",
+      "status": 200,
+      "header": {
+        "Content-Type": "text/html; charset=utf-8"
+      },
+      "body": "180e5f68ea44ed49.html.gz"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.epo.org/en/legal/guidelines-up/2026/section_1_2",
+      "status": 200,
+      "header": {
+        "Content-Type": "text/html; charset=utf-8"
+      },
+      "body": "4b450be0f8ff717a.html.gz"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.epo.org/en/legal/guidelines-up/2026/section_1_2_1",
+      "status": 200,
+      "header": {
+        "Content-Type": "text/html; charset=utf-8"
+      },
+      "body": "a5b92e5a2fba812f.html.gz"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.epo.org/en/legal/guidelines-up/2026/section_1_2_2",
+      "status": 200,
+      "header": {
+        "Content-Type": "text/html; charset=utf-8"
+      },
+      "body": "61355488bd19ee65.html.gz"
+    }
+  ]
+}

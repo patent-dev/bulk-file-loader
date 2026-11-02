@@ -4,24 +4,18 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/ncruces/go-sqlite3/gormlite"
 	"github.com/patent-dev/bulk-file-loader/config"
-	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
+	"github.com/patent-dev/bulk-file-loader/internal/database/dbtest"
 )
 
 func setupTestDB(t *testing.T) *DB {
 	t.Helper()
-	gormDB, err := gorm.Open(gormlite.Open(":memory:"), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Silent),
-	})
+	db, err := New(dbtest.Config(t))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := runMigrations(gormDB); err != nil {
-		t.Fatal(err)
-	}
-	return &DB{DB: gormDB}
+	t.Cleanup(func() { _ = db.Close() })
+	return db
 }
 
 func TestSettings(t *testing.T) {
@@ -201,6 +195,7 @@ func TestSQLiteWALMode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() { _ = db.Close() })
 
 	var journalMode string
 	db.Raw("PRAGMA journal_mode").Scan(&journalMode)
@@ -216,9 +211,11 @@ func TestSQLiteWALMode(t *testing.T) {
 
 	// Verify the database file was created
 	dbPath := filepath.Join(dir, "bulk-loader.db")
-	if _, err := New(&config.Config{DBDriver: "sqlite", DataDir: dir}); err != nil {
+	reopened, err := New(&config.Config{DBDriver: "sqlite", DataDir: dir})
+	if err != nil {
 		t.Fatalf("failed to reopen database at %s: %v", dbPath, err)
 	}
+	_ = reopened.Close()
 }
 
 func TestWebhookCRUD(t *testing.T) {

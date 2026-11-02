@@ -1,0 +1,59 @@
+{
+  "capturedAt": "2026-11-02T05:23:01.098922Z",
+  "exchanges": [
+    {
+      "method": "GET",
+      "url": "https://www.wipo.int/classifications/data/nice/ITSupport_and_download_area/20260101/MasterFiles/",
+      "range": "bytes=0-0",
+      "status": 200,
+      "header": {
+        "Content-Length": "2964",
+        "Content-Type": "text/html; charset=UTF-8"
+      },
+      "body": "693a577acecf1626.html.gz"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.wipo.int/classifications/data/nice/ITSupport_and_download_area/20260101/MasterFiles/",
+      "status": 200,
+      "header": {
+        "Content-Length": "2964",
+        "Content-Type": "text/html; charset=UTF-8"
+      },
+      "body": "693a577acecf1626.html.gz"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.wipo.int/classifications/data/locarno/ITSupport_and_download_area/20260101/MasterFiles/",
+      "range": "bytes=0-0",
+      "status": 404,
+      "header": {
+        "Content-Length": "11969",
+        "Content-Type": "text/html",
+        "Last-Modified": "Wed, 16 Apr 2025 10:47:33 GMT"
+      },
+      "body": "a01fce6f771fdd0b.html.gz"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.wipo.int/classifications/data/locarno/ITSupport_and_download_area/20250101/MasterFiles/",
+      "range": "bytes=0-0",
+      "status": 200,
+      "header": {
+        "Content-Length": "2688",
+        "Content-Type": "text/html; charset=UTF-8"
+      },
+      "body": "1ba380aec912e958.html.gz"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.wipo.int/classifications/data/locarno/ITSupport_and_download_area/20250101/MasterFiles/",
+      "status": 200,
+      "header": {
+        "Content-Length": "2688",
+        "Content-Type": "text/html; charset=UTF-8"
+      },
+      "body": "1ba380aec912e958.html.gz"
+    }
+  ]
+}

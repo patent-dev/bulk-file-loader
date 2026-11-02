@@ -3,36 +3,12 @@ package refdata
 import (
 	"context"
 	"errors"
-	"io"
-	"net/http"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/patent-dev/bulk-file-loader/internal/sources"
 )
-
-// doerFunc adapts a function to the httpDoer interface for tests.
-type doerFunc func(*http.Request) (*http.Response, error)
-
-func (f doerFunc) Do(r *http.Request) (*http.Response, error) { return f(r) }
-
-// mkResp builds an *http.Response with the given status, body and headers.
-func mkResp(status int, body string, headers map[string]string) *http.Response {
-	h := make(http.Header)
-	for k, v := range headers {
-		h.Set(k, v)
-	}
-	return &http.Response{
-		StatusCode:    status,
-		Header:        h,
-		Body:          io.NopCloser(strings.NewReader(body)),
-		ContentLength: int64(len(body)),
-	}
-}
-
-// fixedClock returns a clock function pinned to t.
-func fixedClock(t time.Time) func() time.Time { return func() time.Time { return t } }
 
 func TestSubst(t *testing.T) {
 	got := subst("a/{ed}/b-{ed}.zip", "202605")
@@ -108,9 +84,24 @@ func TestEditionDate(t *testing.T) {
 }
 
 func TestParseLastModified(t *testing.T) {
-	got := parseLastModified("Wed, 21 Oct 2015 07:28:00 GMT")
-	if got.Year() != 2015 || got.Month() != time.October || got.Day() != 21 {
-		t.Errorf("parseLastModified = %v", got)
+	// A Last-Modified header as served by the CPC bulk server.
+	rp := loadReplay(t, "cpc")
+	var header string
+	for _, ex := range rp.cap.Exchanges {
+		if v := ex.Header["Last-Modified"]; v != "" {
+			header = v
+			break
+		}
+	}
+	if header == "" {
+		t.Fatal("cpc capture has no Last-Modified header")
+	}
+	want, err := time.Parse(time.RFC1123, header)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := parseLastModified(header); !got.Equal(want) {
+		t.Errorf("parseLastModified(%q) = %v, want %v", header, got, want)
 	}
 	if !parseLastModified("").IsZero() {
 		t.Error("empty Last-Modified should parse to zero time")
@@ -127,6 +118,7 @@ func TestStatusError(t *testing.T) {
 	}{
 		{200, ""},
 		{206, ""},
+		{202, sources.ErrCodeNetwork}, // WAF challenge, not content
 		{404, sources.ErrCodeNotFound},
 		{410, sources.ErrCodeNotFound},
 		{401, sources.ErrCodeAuth},
@@ -231,8 +223,8 @@ func TestFetchFilesIPCEditionSubstitution(t *testing.T) {
 		t.Fatalf("got %d files, want 4", len(files))
 	}
 	for _, f := range files {
-		if !strings.Contains(f.DownloadURI, "//20250101/MasterFiles/") {
-			t.Errorf("IPC URL did not preserve the dated master-files path: %q", f.DownloadURI)
+		if !strings.HasPrefix(f.DownloadURI, "https://www.wipo.int/classifications/data/ipc/ITSupport_and_download_area/20250101/MasterFiles/") {
+			t.Errorf("IPC URL did not use the dated master-files path: %q", f.DownloadURI)
 		}
 	}
 }

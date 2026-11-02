@@ -126,13 +126,13 @@ func (a *Adapter) crawl(ctx context.Context, spec *crawlSpec, dst io.Writer, pro
 		report(progress, int64(fetched), int64(len(seen)))
 
 		// Resolve this page's relative links against the page's own URL (not the
-		// fixed index URL) — pages can live in a different directory than the
+		// fixed index URL): pages can live in a different directory than the
 		// index (e.g. EPO sections under /2026/).
 		pageBase := base
 		if pb, perr := url.Parse(pageURL); perr == nil {
 			pageBase = pb
 		}
-		for _, link := range extractLinks(body, pageBase, spec.LinkPrefix, 0) {
+		for _, link := range extractLinks(body, pageBase, spec.LinkPrefix) {
 			if _, ok := seen[link]; ok {
 				continue
 			}
@@ -155,7 +155,7 @@ func (a *Adapter) crawl(ctx context.Context, spec *crawlSpec, dst io.Writer, pro
 	}
 	// A partial crawl must fail loudly rather than ship an incomplete manual as
 	// if complete. The page caps are set above each manual's real size, so
-	// hitting one means the manual grew unexpectedly (or a link explosion) — not
+	// hitting one means the manual grew unexpectedly (or a link explosion), not
 	// something to silently truncate. Likewise a large fraction of unreachable
 	// pages signals systematic breakage (WAF, moved section), not the odd
 	// transient 404.
@@ -206,7 +206,8 @@ func sleepCtx(ctx context.Context, d time.Duration) {
 	}
 }
 
-// getBody fetches a URL and returns up to limit bytes of its body.
+// getBody fetches a URL and returns its body. A body larger than limit is an
+// error rather than silently truncated, so a cut-off page is never archived.
 func (a *Adapter) getBody(ctx context.Context, pageURL string, limit int64) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, pageURL, nil)
 	if err != nil {
@@ -224,16 +225,20 @@ func (a *Adapter) getBody(ctx context.Context, pageURL string, limit int64) ([]b
 		return nil, err
 	}
 
-	body, err := io.ReadAll(io.LimitReader(resp.Body, limit))
+	body, err := io.ReadAll(io.LimitReader(resp.Body, limit+1))
 	if err != nil {
 		return nil, sources.NewAdapterError(sources.ErrCodeNetwork, "read failed for "+pageURL, err)
+	}
+	if int64(len(body)) > limit {
+		return nil, sources.NewAdapterError(sources.ErrCodeNetwork,
+			fmt.Sprintf("page %s exceeds the %d-byte limit", pageURL, limit), nil)
 	}
 	return body, nil
 }
 
 // extractLinks returns absolute, deduplicated URLs from HTML whose path begins
-// with prefix and that share the index host, capped at max entries.
-func extractLinks(body []byte, base *url.URL, prefix string, max int) []string {
+// with prefix and that share the index host.
+func extractLinks(body []byte, base *url.URL, prefix string) []string {
 	seen := make(map[string]struct{})
 	out := make([]string, 0, 64)
 	for _, m := range hrefRe.FindAllSubmatch(body, -1) {
@@ -257,9 +262,6 @@ func extractLinks(body []byte, base *url.URL, prefix string, max int) []string {
 		}
 		seen[key] = struct{}{}
 		out = append(out, key)
-		if max > 0 && len(out) >= max-1 { // -1 reserves a slot for the index page
-			break
-		}
 	}
 	return out
 }
@@ -282,16 +284,18 @@ func zipEntryName(pageURL string) string {
 	return name
 }
 
-// statusError maps an HTTP status to an adapter error, or nil for 2xx.
+// statusError maps an HTTP status to an adapter error, or nil for 200 and 206.
+// Other 2xx statuses carry no usable content: WAFs answer bot traffic with a 202
+// challenge page, which must not be archived as the real document.
 func statusError(status int, target string) error {
-	switch {
-	case status >= 200 && status < 300:
+	switch status {
+	case http.StatusOK, http.StatusPartialContent:
 		return nil
-	case status == http.StatusUnauthorized, status == http.StatusForbidden:
+	case http.StatusUnauthorized, http.StatusForbidden:
 		return sources.NewAdapterError(sources.ErrCodeAuth, fmt.Sprintf("access denied (%d) for %s", status, target), nil)
-	case status == http.StatusNotFound, status == http.StatusGone:
+	case http.StatusNotFound, http.StatusGone:
 		return sources.NewAdapterError(sources.ErrCodeNotFound, fmt.Sprintf("not found (%d): %s", status, target), nil)
-	case status == http.StatusTooManyRequests:
+	case http.StatusTooManyRequests:
 		return sources.NewAdapterError(sources.ErrCodeRateLimit, "rate limited by "+target, nil)
 	default:
 		return sources.NewAdapterError(sources.ErrCodeNetwork, fmt.Sprintf("unexpected status %d for %s", status, target), nil)

@@ -85,9 +85,6 @@ func (a *Adapter) fetchEUIPO(ctx context.Context, spec *apiSpec, dst io.Writer, 
 
 	var walk func(nodeID, parentID string) error
 	walk = func(nodeID, parentID string) error {
-		if len(collected) >= spec.MaxNodes {
-			return nil
-		}
 		if err := ctx.Err(); err != nil {
 			return err
 		}
@@ -108,6 +105,12 @@ func (a *Adapter) fetchEUIPO(ctx context.Context, spec *apiSpec, dst io.Writer, 
 			// "t100000000") and their subtrees; they carry no real content.
 			if strings.TrimSpace(n.Title) == "" {
 				continue
+			}
+			// The cap is set above the guidelines' real size; exceeding it means
+			// the tree grew unexpectedly, so fail rather than archive a partial.
+			if spec.MaxNodes > 0 && len(collected) >= spec.MaxNodes {
+				return sources.NewAdapterError(sources.ErrCodeNetwork,
+					fmt.Sprintf("EUIPO toc exceeds the %d-node cap: manual would be incomplete", spec.MaxNodes), nil)
 			}
 			pageID := euipoPageID(n.URL)
 			collected = append(collected, euipoCollectedNode{ID: n.ID, ParentID: parentID, Title: n.Title, PageID: pageID})

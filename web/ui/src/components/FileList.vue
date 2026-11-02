@@ -196,7 +196,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="bg-white rounded-lg shadow">
+  <div class="bg-white rounded-lg shadow-sm">
     <!-- Filters -->
     <div class="p-4 border-b flex items-center space-x-4">
       <select
@@ -334,7 +334,7 @@ onUnmounted(() => {
       <button
         @click="offset = Math.max(0, offset - limit); fetchFiles()"
         :disabled="offset === 0"
-        class="px-3 py-1 text-sm border rounded disabled:opacity-50"
+        class="px-3 py-1 text-sm border rounded-sm disabled:opacity-50"
       >
         Previous
       </button>
@@ -344,7 +344,7 @@ onUnmounted(() => {
       <button
         @click="offset = offset + limit; fetchFiles()"
         :disabled="offset + limit >= total"
-        class="px-3 py-1 text-sm border rounded disabled:opacity-50"
+        class="px-3 py-1 text-sm border rounded-sm disabled:opacity-50"
       >
         Next
       </button>

@@ -1,0 +1,95 @@
+{
+  "capturedAt": "2026-11-02T05:23:16.606263Z",
+  "exchanges": [
+    {
+      "method": "GET",
+      "url": "https://guidelines.euipo.europa.eu/api/publications",
+      "status": 200,
+      "header": {
+        "Content-Length": "199130",
+        "Content-Type": "application/json"
+      },
+      "body": "7a45b1658b686bf2.json.gz"
+    },
+    {
+      "method": "GET",
+      "url": "https://guidelines.euipo.europa.eu/api/publications",
+      "status": 200,
+      "header": {
+        "Content-Length": "199130",
+        "Content-Type": "application/json"
+      },
+      "body": "7a45b1658b686bf2.json.gz"
+    },
+    {
+      "method": "GET",
+      "url": "https://guidelines.euipo.europa.eu/api/toc/2319054",
+      "status": 200,
+      "header": {
+        "Content-Length": "666",
+        "Content-Type": "application/json"
+      },
+      "body": "3148214d392eb0c2.json.gz"
+    },
+    {
+      "method": "GET",
+      "url": "https://guidelines.euipo.europa.eu/api/toc/2319054/t1",
+      "status": 200,
+      "header": {
+        "Content-Length": "3230",
+        "Content-Type": "application/json"
+      },
+      "body": "d0003265be89be63.json.gz"
+    },
+    {
+      "method": "GET",
+      "url": "https://guidelines.euipo.europa.eu/api/page/2319054/2445755",
+      "status": 200,
+      "header": {
+        "Content-Length": "6503",
+        "Content-Type": "application/json"
+      },
+      "body": "5dc32260c2bbbf9c.json.gz"
+    },
+    {
+      "method": "GET",
+      "url": "https://guidelines.euipo.europa.eu/api/page/2319054/2231888",
+      "status": 200,
+      "header": {
+        "Content-Length": "3664",
+        "Content-Type": "application/json"
+      },
+      "body": "377ed7e5415c5ca3.json.gz"
+    },
+    {
+      "method": "GET",
+      "url": "https://guidelines.euipo.europa.eu/api/toc/2319054/t1-k3",
+      "status": 200,
+      "header": {
+        "Content-Length": "1635",
+        "Content-Type": "application/json"
+      },
+      "body": "5033491da7909d44.json.gz"
+    },
+    {
+      "method": "GET",
+      "url": "https://guidelines.euipo.europa.eu/api/page/2319054/2347260",
+      "status": 200,
+      "header": {
+        "Content-Length": "4885",
+        "Content-Type": "application/json"
+      },
+      "body": "e84b13b6e42e675e.json.gz"
+    },
+    {
+      "method": "GET",
+      "url": "https://guidelines.euipo.europa.eu/api/page/2319054/2347286",
+      "status": 200,
+      "header": {
+        "Content-Length": "4308",
+        "Content-Type": "application/json"
+      },
+      "body": "85da545d8f2035b5.json.gz"
+    }
+  ]
+}

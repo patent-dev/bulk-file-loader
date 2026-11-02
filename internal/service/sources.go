@@ -8,6 +8,7 @@ import (
 	"github.com/patent-dev/bulk-file-loader/api/generated"
 	"github.com/patent-dev/bulk-file-loader/internal/database"
 	"github.com/patent-dev/bulk-file-loader/internal/sources"
+	"gorm.io/gorm/clause"
 )
 
 func (s *Service) ListSources() ([]generated.Source, error) {
@@ -163,10 +164,13 @@ func (s *Service) syncProductDeliveriesAndFiles(ctx context.Context, adapter sou
 			ProductID:   productID,
 			ExternalID:  d.ExternalID,
 			Name:        d.Name,
-			PublishedAt: &d.PublishedAt,
+			PublishedAt: database.OptionalTime(d.PublishedAt),
 			ExpiresAt:   d.ExpiresAt,
 		}
-		if err := s.DB.Save(&delivery).Error; err != nil {
+		if err := s.DB.Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "id"}},
+			DoUpdates: clause.AssignmentColumns([]string{"name", "published_at", "expires_at"}),
+		}).Create(&delivery).Error; err != nil {
 			slog.Error("Failed to save delivery", "deliveryID", deliveryID, "error", err)
 			continue
 		}
@@ -190,9 +194,15 @@ func (s *Service) syncProductDeliveriesAndFiles(ctx context.Context, adapter sou
 				ExpectedChecksum:  f.Checksum,
 				ChecksumAlgorithm: f.ChecksumAlgorithm,
 				DownloadURI:       f.DownloadURI,
-				ReleasedAt:        &f.ReleasedAt,
+				ReleasedAt:        database.OptionalTime(f.ReleasedAt),
 			}
-			if err := s.DB.Save(&file).Error; err != nil {
+			if err := s.DB.Clauses(clause.OnConflict{
+				Columns: []clause.Column{{Name: "id"}},
+				DoUpdates: clause.AssignmentColumns([]string{
+					"file_name", "file_size", "expected_checksum", "checksum_algorithm",
+					"download_uri", "released_at", "updated_at",
+				}),
+			}).Create(&file).Error; err != nil {
 				slog.Error("Failed to save file", "fileID", fileID, "error", err)
 				continue
 			}

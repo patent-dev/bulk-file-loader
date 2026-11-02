@@ -1,0 +1,110 @@
+{
+  "capturedAt": "2026-11-02T05:23:01.644638Z",
+  "exchanges": [
+    {
+      "method": "GET",
+      "url": "https://www.j-platpat.inpit.go.jp/cache/classify/patent/PMGS_HTML/jpp/F_TERM/en/themeGroup/themeGroup_en.html",
+      "range": "bytes=0-0",
+      "status": 206,
+      "header": {
+        "Content-Length": "1",
+        "Content-Range": "bytes 0-0/7995",
+        "Content-Type": "text/html",
+        "Last-Modified": "Fri, 30 Oct 2026 08:10:42 GMT"
+      },
+      "body": "dabd3aff769f07eb.html.gz"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.uspto.gov/web/offices/pac/mpep/",
+      "status": 200,
+      "header": {
+        "Content-Type": "text/html; charset=UTF-8"
+      },
+      "body": "938c29ba26f7fb9c.html.gz"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.uspto.gov/trademarks/guides-and-manuals/tmep-archives",
+      "status": 200,
+      "header": {
+        "Content-Type": "text/html; charset=UTF-8"
+      },
+      "body": "9b9b8cc2c32788bb.html.gz"
+    },
+    {
+      "method": "GET",
+      "url": "https://guidelines.euipo.europa.eu/api/publications",
+      "status": 200,
+      "header": {
+        "Content-Length": "199130",
+        "Content-Type": "application/json"
+      },
+      "body": "7a45b1658b686bf2.json.gz"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.wipo.int/en/web/pct-system/texts/ispe/index",
+      "range": "bytes=0-0",
+      "status": 200,
+      "header": {
+        "Content-Type": "text/html;charset=UTF-8"
+      },
+      "body": "612af2f4ba4e35f4.html.gz"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.epo.org/en/legal/guidelines-epc",
+      "status": 200,
+      "header": {
+        "Content-Type": "text/html; charset=utf-8",
+        "Last-Modified": "Sun, 01 Nov 2026 18:03:37 GMT"
+      },
+      "body": "2d32193cf1c23328.html.gz"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.epo.org/en/legal/guidelines-pct",
+      "status": 200,
+      "header": {
+        "Content-Type": "text/html; charset=utf-8",
+        "Last-Modified": "Sun, 01 Nov 2026 18:06:52 GMT"
+      },
+      "body": "2659c399f33993a2.html.gz"
+    },
+    {
+      "method": "GET",
+      "url": "https://www.epo.org/en/legal/guidelines-up",
+      "status": 200,
+      "header": {
+        "Content-Type": "text/html; charset=utf-8",
+        "Last-Modified": "Sun, 01 Nov 2026 18:06:52 GMT"
+      },
+      "body": "f146007760f44493.html.gz"
+    },
+    {
+      "method": "GET",
+      "url": "https://manuals.ipaustralia.gov.au/patent",
+      "range": "bytes=0-0",
+      "status": 200,
+      "header": {
+        "Content-Length": "150084",
+        "Content-Type": "text/html; charset=utf-8",
+        "Last-Modified": "Mon, 02 Nov 2026 05:13:49 GMT"
+      },
+      "body": "de33978be7bb7f4a.html.gz"
+    },
+    {
+      "method": "GET",
+      "url": "https://manuals.ipaustralia.gov.au/trademark",
+      "range": "bytes=0-0",
+      "status": 200,
+      "header": {
+        "Content-Length": "109226",
+        "Content-Type": "text/html; charset=utf-8",
+        "Last-Modified": "Mon, 02 Nov 2026 05:13:53 GMT"
+      },
+      "body": "35bd65c529a7744f.html.gz"
+    }
+  ]
+}

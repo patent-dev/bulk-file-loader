@@ -90,7 +90,8 @@ func TestLiveManualDiscovery(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 
-	for _, product := range []string{"mpep", "tmep", "euipo-tm", "wipo-pct", "epo-guidelines"} {
+	for _, d := range manualDatasets() {
+		product := d.ID
 		dels, err := a.FetchDeliveries(ctx, product)
 		if err != nil {
 			t.Errorf("%s: FetchDeliveries: %v", product, err)
@@ -105,7 +106,7 @@ func TestLiveManualDiscovery(t *testing.T) {
 
 // TestLiveNiceLocarno exercises the discoverIndexListing path against the real
 // WIPO master-file directories: edition discovery, resolving the two zip URLs
-// from the autoindex, and downloading the (smaller) top_structure zip.
+// from the directory listing, and downloading the (smaller) top_structure zip.
 func TestLiveNiceLocarno(t *testing.T) {
 	requireLive(t)
 	a := NewClassifications()
