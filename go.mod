@@ -12,7 +12,7 @@ require (
 	github.com/ncruces/go-sqlite3/gormlite v0.34.0
 	github.com/oapi-codegen/runtime v1.8.0
 	github.com/patent-dev/dpma-connect-plus v0.3.7
-	github.com/patent-dev/epo-bdds v0.2.3
+	github.com/patent-dev/epo-bdds v0.2.4
 	github.com/patent-dev/uspto-odp v1.6.11
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/spf13/cobra v1.10.2
