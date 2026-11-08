@@ -140,10 +140,12 @@ jobs:
     needs: [build, docker]
     runs-on: ubuntu-latest
     steps:
-      - name: Download all artifacts
+      - name: Download binary artifacts
         uses: actions/download-artifact@v8
         with:
           path: artifacts
+          # Only the binaries; the Docker build also uploads a build record.
+          pattern: bulk-file-loader-*
 
       - name: Create Release
         uses: softprops/action-gh-release@v3
