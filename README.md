@@ -3,16 +3,17 @@
 - Source: [github.com/patent-dev/bulk-file-loader](https://github.com/patent-dev/bulk-file-loader)
 - Docker: [hub.docker.com/r/patentdev/bulk-file-loader](https://hub.docker.com/r/patentdev/bulk-file-loader)
 
-Automated bulk data download manager for patent data from EPO, USPTO, and DPMA.
+Automated bulk data download manager for patent data from EPO, USPTO, and DPMA, and for public patent reference data (classifications, examination manuals).
 
 ![Screenshot](screenshots/overview.png)
 
 ## Features
 
 - Download bulk patent data from EPO BDDS, USPTO ODP, and DPMA Connect Plus
+- Download public reference data without credentials: CPC, IPC, Nice, Locarno and JPO F-term classifications; USPTO MPEP and TMEP, EPO, EUIPO, WIPO PCT and IP Australia examination guidelines
 - CLI for scripting, cron jobs, and data pipeline integration
 - Web UI for configuration and monitoring
-- Automatic scheduled downloads with retry
+- Automatic scheduled downloads
 - Webhook notifications
 - Multi-database support (SQLite, PostgreSQL, MySQL)
 

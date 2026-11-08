@@ -2,7 +2,7 @@
 
 ## Overview
 
-`bulk-file-loader` downloads bulk patent data files from the EPO (European Patent Office), USPTO (US Patent and Trademark Office), and DPMA (German Patent and Trade Mark Office). It supports two modes:
+`bulk-file-loader` downloads bulk patent data files from the EPO (European Patent Office), USPTO (US Patent and Trademark Office), and DPMA (German Patent and Trade Mark Office), plus public reference data: patent classifications (CPC, IPC, Nice, Locarno, JPO F-terms) and examination manuals and guidelines (USPTO, EPO, EUIPO, WIPO, IP Australia). It supports two modes:
 
 - **`serve`** - web UI with automatic scheduled downloads (for always-on setups)
 - **All other commands** - direct CLI access, no server needed (for scripting and one-shot downloads)
@@ -83,7 +83,7 @@ bulk-file-loader source disable <id>
 bulk-file-loader source test <id> [--username USER --password PASS | --api-key KEY]
 ```
 
-Available sources: `epo-bdds`, `uspto-odp`, `dpma-connect-plus`.
+Available sources: `epo-bdds`, `uspto-odp`, `dpma-connect-plus` (credentials required), `patent-classifications`, `examination-manuals` (public, no credentials).
 
 ### Products
 
@@ -160,10 +160,12 @@ All commands that produce output support `--format table|json|csv` and `-q` (qui
 **Table** (default, human-readable):
 ```
 $ bulk-file-loader source ls
-ID                 Name               Enabled  Has Credentials  Last Sync
------------------  -----------------  -------  ---------------  ---------
-dpma-connect-plus  DPMA Connect Plus  yes      yes              2026-04-02
-epo-bdds           EPO BDDS           yes      yes              2026-04-02
+ID                      Name                               Enabled  Has Credentials  Last Sync
+dpma-connect-plus       DPMA Connect Plus                  yes      yes              2026-11-08
+epo-bdds                EPO BDDS                           yes      yes              2026-11-08
+examination-manuals     Examination Manuals & Guidelines   no       not needed
+patent-classifications  Patent Classifications (CPC, IPC)  yes      not needed       2026-11-08
+uspto-odp               USPTO ODP                          no       no
 ```
 
 **JSON** (matches the API response schema):
@@ -176,7 +178,7 @@ $ bulk-file-loader source ls --format json
 ```
 $ bulk-file-loader source ls --format csv
 ID,Name,Enabled,Has Credentials,Last Sync
-dpma-connect-plus,DPMA Connect Plus,yes,yes,2026-04-02
+dpma-connect-plus,DPMA Connect Plus,yes,yes,2026-11-08
 ```
 
 **Quiet** (IDs only, for piping):

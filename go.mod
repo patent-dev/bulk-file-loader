@@ -6,7 +6,7 @@ go 1.27.0
 ignore ./web/ui/node_modules
 
 require (
-	github.com/getkin/kin-openapi v0.152.0
+	github.com/getkin/kin-openapi v0.153.0
 	github.com/go-sql-driver/mysql v1.10.1
 	github.com/jackc/pgx/v5 v5.12.0
 	github.com/ncruces/go-sqlite3/gormlite v0.34.0
@@ -34,14 +34,12 @@ require (
 	github.com/jackc/puddle/v2 v2.2.3 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
-	github.com/ncruces/go-sqlite3 v0.36.0 // indirect
-	github.com/ncruces/go-sqlite3-wasm/v6 v6.4.35401 // indirect
+	github.com/ncruces/go-sqlite3 v0.37.0 // indirect
+	github.com/ncruces/go-sqlite3-wasm/v6 v6.5.35401 // indirect
 	github.com/ncruces/julianday v1.0.0 // indirect
-	github.com/oasdiff/yaml v0.1.3 // indirect
-	github.com/oasdiff/yaml3 v0.0.16 // indirect
-	github.com/rogpeppe/go-internal v1.16.0 // indirect
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3 // indirect
-	github.com/spf13/pflag v1.0.10 // indirect
+	github.com/spf13/pflag v1.1.0 // indirect
+	go.yaml.in/yaml/v4 v4.0.0 // indirect
 	golang.org/x/sync v0.24.0 // indirect
 	golang.org/x/sys v0.49.0 // indirect
 	golang.org/x/text v0.43.0 // indirect

@@ -1,0 +1,18 @@
+# Build context for the Dockerfile: sources only. Everything below is either
+# rebuilt inside the image or must never end up in it.
+.git
+.github
+.env
+.env.local
+.air.toml
+bulk-file-loader
+*.exe
+*.db
+data/
+tmp/
+notes/
+screenshots/
+api/generated/
+api/client/
+web/ui/node_modules/
+web/ui/dist/

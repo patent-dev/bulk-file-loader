@@ -2,11 +2,14 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"io"
+	"strings"
 	"testing"
 
 	"github.com/patent-dev/bulk-file-loader/internal/database"
 	"github.com/patent-dev/bulk-file-loader/internal/sources"
+	"github.com/patent-dev/bulk-file-loader/internal/sources/refdata"
 )
 
 // stubAdapter is a minimal adapter for testing source listing and updates.
@@ -72,5 +75,25 @@ func TestUpdateSourcePreservesEnabled(t *testing.T) {
 	svc.DB.First(&src, "id = ?", "s1")
 	if !src.Enabled {
 		t.Error("expected source to remain enabled when enabled=nil, but it was disabled")
+	}
+}
+
+// TestPublicSourceCredentialFieldsIsEmptyList verifies a source without
+// credentials serialises credentialFields as [] (required array in the spec),
+// not null.
+func TestPublicSourceCredentialFieldsIsEmptyList(t *testing.T) {
+	svc := setupTestService(t)
+	svc.Registry.Register(refdata.NewClassifications())
+
+	src, err := svc.GetSource(refdata.ClassificationsID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := json.Marshal(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), `"credentialFields":[]`) {
+		t.Errorf("credentialFields not an empty list: %s", data)
 	}
 }

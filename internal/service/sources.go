@@ -219,6 +219,8 @@ func convertSourceInfo(si sources.SourceInfo) generated.Source {
 		Enabled:        si.Enabled,
 		HasCredentials: si.HasCredentials,
 		LastSyncAt:     si.LastSyncAt,
+		// Required by the spec: an empty list, never null, for public sources.
+		CredentialFields: []generated.CredentialField{},
 	}
 	for _, cf := range si.CredentialFields {
 		helpText := cf.HelpText
