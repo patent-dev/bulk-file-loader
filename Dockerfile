@@ -38,8 +38,10 @@ RUN CGO_ENABLED=0 go build -ldflags="-s -w -X github.com/patent-dev/bulk-file-lo
 # Runtime image
 FROM alpine:3.24
 
+# Fixed ids (uid 100, gid 101, as in earlier images) so bind mounts and
+# volumes can be owned correctly: chown -R 100:101 <data dir>.
 RUN apk add --no-cache ca-certificates tzdata && \
-    addgroup -S appgroup && adduser -S appuser -G appgroup
+    addgroup -S -g 101 appgroup && adduser -S -u 100 -G appgroup appuser
 
 WORKDIR /app
 
@@ -55,5 +57,9 @@ EXPOSE 8080
 VOLUME ["/app/data"]
 
 USER appuser
+
+# Set the port with BULK_LOADER_PORT (not --port) so the health check finds it.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+    CMD wget -qO /dev/null "http://127.0.0.1:${BULK_LOADER_PORT:-8080}/healthz" || exit 1
 
 ENTRYPOINT ["./bulk-file-loader", "serve"]

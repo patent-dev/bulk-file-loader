@@ -2,6 +2,7 @@ package sources
 
 import (
 	"context"
+	"errors"
 	"io"
 	"testing"
 
@@ -141,5 +142,60 @@ func TestUpdateSourceWithNewCredentials(t *testing.T) {
 
 	if adapter.creds["api_key"] != "newsecret456" {
 		t.Fatalf("got %q, want newsecret456", adapter.creds["api_key"])
+	}
+}
+
+// credentialedAdapter requires a username and accepts only "valid".
+type credentialedAdapter struct {
+	mockAdapter
+}
+
+func (c *credentialedAdapter) CredentialFields() []CredentialField {
+	return []CredentialField{{Key: "username", Required: true}}
+}
+
+func (c *credentialedAdapter) ValidateCredentials(context.Context) error {
+	if c.creds["username"] != "valid" {
+		return context.DeadlineExceeded
+	}
+	return nil
+}
+
+func (c *credentialedAdapter) NewInstance() Adapter {
+	return &credentialedAdapter{mockAdapter: mockAdapter{id: c.id, name: c.name}}
+}
+
+// TestTestCredentialsLeavesLiveAdapterAlone verifies that testing wrong
+// credentials does not replace the credentials the adapter is running with.
+func TestTestCredentialsLeavesLiveAdapterAlone(t *testing.T) {
+	db := setupTestDB(t)
+	registry := NewRegistry(db, &config.Config{})
+	adapter := &credentialedAdapter{mockAdapter: mockAdapter{id: "src", name: "Source"}}
+	registry.Register(adapter)
+	if err := registry.UpdateSource("src", true, map[string]string{"username": "valid"}, &mockCryptor{}); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := registry.TestCredentials(context.Background(), "src", map[string]string{"username": "typo"}); err == nil {
+		t.Fatal("wrong credentials must fail the test")
+	}
+	if adapter.creds["username"] != "valid" {
+		t.Errorf("live adapter credentials = %v, want the stored ones", adapter.creds)
+	}
+	if err := registry.TestStoredCredentials(context.Background(), "src"); err != nil {
+		t.Errorf("stored credentials should still validate: %v", err)
+	}
+}
+
+// TestTestStoredCredentialsNeedsLoadedCredentials verifies that stored but
+// undecrypted credentials are reported as not loaded rather than invalid.
+func TestTestStoredCredentialsNeedsLoadedCredentials(t *testing.T) {
+	db := setupTestDB(t)
+	registry := NewRegistry(db, &config.Config{})
+	registry.Register(&credentialedAdapter{mockAdapter: mockAdapter{id: "src", name: "Source"}})
+	db.Create(&database.Source{ID: "src", Name: "Source", Enabled: true, CredentialsEnc: []byte("enc:{}")})
+
+	if err := registry.TestStoredCredentials(context.Background(), "src"); !errors.Is(err, ErrCredentialsNotLoaded) {
+		t.Errorf("error = %v, want ErrCredentialsNotLoaded", err)
 	}
 }

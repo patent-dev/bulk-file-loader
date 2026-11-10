@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -48,18 +49,44 @@ func (s *Service) GetStats() (generated.StatsResponse, error) {
 	}, nil
 }
 
-func (s *Service) HealthCheck() generated.HealthResponse {
+// HealthCheck reports whether the database answers, whether the scheduler
+// runs, and how many downloads are active. An unreachable database makes
+// the service unhealthy.
+func (s *Service) HealthCheck(ctx context.Context) generated.HealthResponse {
 	uptime := time.Since(s.startTime).String()
 	version := s.Version
 	if version == "" {
 		version = "dev"
 	}
 
-	return generated.HealthResponse{
-		Status:  "healthy",
-		Uptime:  &uptime,
-		Version: &version,
+	status := generated.Healthy
+	database := generated.Ok
+	pingCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	if sqlDB, err := s.DB.DB.DB(); err != nil || sqlDB.PingContext(pingCtx) != nil {
+		status = generated.Unhealthy
+		database = generated.Unavailable
 	}
+	scheduler := generated.Disabled
+	if s.Scheduler != nil && s.Scheduler.Running() {
+		scheduler = generated.Running
+	}
+	active := len(s.Downloader.ActiveDownloads())
+
+	health := generated.HealthResponse{
+		Status:          status,
+		Uptime:          &uptime,
+		Version:         &version,
+		Database:        &database,
+		Scheduler:       &scheduler,
+		ActiveDownloads: &active,
+	}
+	if status != generated.Unhealthy {
+		if q, err := s.Downloader.QueueCounts(); err == nil {
+			health.Queue = &generated.QueueCounts{Queued: q.Queued, Running: q.Running, Retrying: q.Retrying, Failed: q.Failed}
+		}
+	}
+	return health
 }
 
 func (s *Service) GetSchedule() ([]generated.ProductSchedule, error) {

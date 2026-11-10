@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/patent-dev/bulk-file-loader/api/generated"
@@ -10,19 +11,26 @@ import (
 )
 
 var (
-	sourceUsername string
-	sourcePassword string
-	sourceAPIKey   string
+	sourceUsername      string
+	sourcePassword      string
+	sourceAPIKey        string
+	sourcePasswordStdin bool
+	sourceAPIKeyStdin   bool
+	sourceSync          bool
 )
 
-func init() {
-	sourceEnableCmd.Flags().StringVar(&sourceUsername, "username", "", "username credential")
-	sourceEnableCmd.Flags().StringVar(&sourcePassword, "password", "", "password credential")
-	sourceEnableCmd.Flags().StringVar(&sourceAPIKey, "api-key", "", "API key credential")
+func addCredentialFlags(cmd *cobra.Command) {
+	cmd.Flags().StringVar(&sourceUsername, "username", "", "username credential")
+	cmd.Flags().StringVar(&sourcePassword, "password", "", "password credential (deprecated: visible in ps and shell history)")
+	cmd.Flags().StringVar(&sourceAPIKey, "api-key", "", "API key credential (deprecated: visible in ps and shell history)")
+	cmd.Flags().BoolVar(&sourcePasswordStdin, "password-stdin", false, "read the password from stdin")
+	cmd.Flags().BoolVar(&sourceAPIKeyStdin, "api-key-stdin", false, "read the API key from stdin")
+}
 
-	sourceTestCmd.Flags().StringVar(&sourceUsername, "username", "", "username credential")
-	sourceTestCmd.Flags().StringVar(&sourcePassword, "password", "", "password credential")
-	sourceTestCmd.Flags().StringVar(&sourceAPIKey, "api-key", "", "API key credential")
+func init() {
+	addCredentialFlags(sourceEnableCmd)
+	addCredentialFlags(sourceTestCmd)
+	sourceEnableCmd.Flags().BoolVar(&sourceSync, "sync", false, "also sync the file catalogue (can take minutes)")
 
 	sourceCmd.AddCommand(sourceLsCmd, sourceShowCmd, sourceEnableCmd, sourceDisableCmd, sourceTestCmd)
 	rootCmd.AddCommand(sourceCmd)
@@ -124,14 +132,29 @@ var sourceEnableCmd = &cobra.Command{
 		}
 		defer c.Close()
 
-		creds := buildCredentials()
+		current, err := c.Service.GetSource(args[0])
+		if err != nil {
+			return err
+		}
+		in := defaultCredentialInput()
+		creds, err := credentialsGiven(in, args[0])
+		if err != nil {
+			return err
+		}
+		// Given credentials (flags, stdin, environment) are completed by a
+		// prompt; without any, a source that has stored credentials keeps them.
+		if len(creds) > 0 || !current.HasCredentials {
+			if err := completeCredentials(in, args[0], current.CredentialFields, creds); err != nil {
+				return err
+			}
+		}
 		var credsPtr *map[string]string
 		if len(creds) > 0 {
 			credsPtr = &creds
 		}
 
 		enabled := true
-		ctx, cancel := context.WithTimeout(context.Background(), sourceTimeout())
+		ctx, cancel := context.WithTimeout(cmd.Context(), sourceTimeout())
 		defer cancel()
 
 		src, err := c.Service.UpdateSource(ctx, args[0], &enabled, credsPtr)
@@ -141,10 +164,23 @@ var sourceEnableCmd = &cobra.Command{
 
 		if flagQuiet {
 			fmt.Println(src.Id)
-			return nil
+		} else {
+			sourceID := src.Id
+			products, _ := c.Service.ListProducts(&sourceID)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Source %s enabled (%d products)\n", src.Id, len(products))
+			if !sourceSync {
+				_, _ = fmt.Fprintf(os.Stderr, "Run 'bulk-file-loader product sync --all' or pass --sync to fetch the file catalogue.\n")
+			}
 		}
 
-		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Source %s enabled\n", src.Id)
+		if sourceSync {
+			sum := newSyncSummary()
+			if err := syncSource(cmd.Context(), c, src.Id, sum); err != nil {
+				return err
+			}
+			sum.print()
+			return sum.result()
+		}
 		return nil
 	},
 }
@@ -190,38 +226,40 @@ var sourceTestCmd = &cobra.Command{
 		}
 		defer c.Close()
 
-		creds := buildCredentials()
-		if len(creds) == 0 {
-			return fmt.Errorf("at least one credential flag is required (--username, --password, --api-key)")
+		in := defaultCredentialInput()
+		creds, err := credentialsGiven(in, args[0])
+		if err != nil {
+			return err
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), sourceTimeout())
+		ctx, cancel := context.WithTimeout(cmd.Context(), sourceTimeout())
 		defer cancel()
 
-		if err := c.Service.TestCredentials(ctx, args[0], creds); err != nil {
+		// Without credentials given (flags, stdin, environment), test the
+		// stored ones.
+		what := "Stored credentials"
+		if len(creds) == 0 {
+			err = c.Service.TestStoredCredentials(ctx, args[0])
+		} else {
+			what = "Credentials"
+			src, gerr := c.Service.GetSource(args[0])
+			if gerr != nil {
+				return gerr
+			}
+			if err := completeCredentials(in, args[0], src.CredentialFields, creds); err != nil {
+				return err
+			}
+			err = c.Service.TestCredentials(ctx, args[0], creds)
+		}
+		if err != nil {
 			return fmt.Errorf("credential test failed: %w", err)
 		}
 
 		if !flagQuiet {
-			_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Credentials are valid")
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s are valid\n", what)
 		}
 		return nil
 	},
-}
-
-func buildCredentials() map[string]string {
-	creds := make(map[string]string)
-	if sourceUsername != "" {
-		creds["username"] = sourceUsername
-	}
-	if sourcePassword != "" {
-		creds["password"] = sourcePassword
-	}
-	if sourceAPIKey != "" {
-		creds["api_key"] = sourceAPIKey
-	}
-
-	return creds
 }
 
 func sourceTimeout() time.Duration {

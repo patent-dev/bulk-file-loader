@@ -8,13 +8,16 @@ interface File {
   id: string
   fileName: string
   fileSize: number
-  status: 'available' | 'downloading' | 'downloaded' | 'failed' | 'skipped' | 'deleted' | 'cancelled'
+  status: 'available' | 'queued' | 'downloading' | 'retrying' | 'downloaded' | 'failed' | 'skipped' | 'deleted' | 'cancelled'
   sourceId: string
   productId: string
   releasedAt?: string
   localPath?: string
   skipped: boolean
   errorMessage?: string
+  attempts?: number
+  maxAttempts?: number
+  nextAttemptAt?: string
 }
 
 const props = defineProps<{
@@ -94,6 +97,28 @@ async function downloadFile(fileId: string) {
   }
 }
 
+// Cancels a queued, retrying or running download.
+async function cancelQueued(fileId: string) {
+  try {
+    const response = await fetch(`/api/files/${encodeURIComponent(fileId)}/cancel`, {
+      method: 'POST',
+      credentials: 'include',
+    })
+    if (!response.ok) {
+      console.error('Failed to cancel download:', response.status, await response.text())
+    }
+    emit('files-changed')
+    fetchFiles()
+  } catch (error) {
+    console.error('Failed to cancel download:', error)
+  }
+}
+
+function formatTime(dateStr?: string): string {
+  if (!dateStr) return ''
+  return new Date(dateStr).toLocaleTimeString()
+}
+
 async function toggleSkip(file: File) {
   try {
     const method = file.skipped ? 'DELETE' : 'PUT'
@@ -148,7 +173,9 @@ function formatDate(dateStr?: string): string {
 function getStatusBadgeClass(status: string): string {
   const classes: Record<string, string> = {
     available: 'bg-gray-100 text-gray-800',
+    queued: 'bg-sky-100 text-sky-800',
     downloading: 'bg-blue-100 text-blue-800',
+    retrying: 'bg-amber-100 text-amber-800',
     downloaded: 'bg-green-100 text-green-800',
     failed: 'bg-red-100 text-red-800',
     skipped: 'bg-yellow-100 text-yellow-800',
@@ -208,7 +235,9 @@ onUnmounted(() => {
       >
         <option value="">All Status</option>
         <option value="available">Available</option>
+        <option value="queued">Queued</option>
         <option value="downloading">Downloading</option>
+        <option value="retrying">Retrying</option>
         <option value="downloaded">Downloaded</option>
         <option value="failed">Failed</option>
         <option value="cancelled">Cancelled</option>
@@ -283,7 +312,13 @@ onUnmounted(() => {
                 class="mt-1"
               />
               <div
-                v-if="file.status === 'failed' && file.errorMessage"
+                v-if="file.status === 'retrying'"
+                class="text-xs text-amber-700 mt-1"
+              >
+                attempt {{ file.attempts }} of {{ file.maxAttempts }}, next {{ formatTime(file.nextAttemptAt) }}
+              </div>
+              <div
+                v-if="(file.status === 'failed' || file.status === 'retrying') && file.errorMessage"
                 class="text-xs text-red-600 mt-1 cursor-help"
                 :title="file.errorMessage"
               >
@@ -297,6 +332,13 @@ onUnmounted(() => {
                 class="text-sm text-blue-600 hover:text-blue-800"
               >
                 {{ file.status === 'failed' || file.status === 'cancelled' ? 'Retry' : 'Download' }}
+              </button>
+              <button
+                v-if="file.status === 'queued' || file.status === 'retrying' || file.status === 'downloading'"
+                @click="cancelQueued(file.id)"
+                class="text-sm text-red-600 hover:text-red-800"
+              >
+                Cancel
               </button>
               <button
                 v-if="file.status === 'downloaded' && file.localPath"

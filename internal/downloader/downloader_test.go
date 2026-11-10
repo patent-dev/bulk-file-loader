@@ -57,6 +57,7 @@ func setupTestEnv(t *testing.T) (*database.DB, *sources.Registry, *hooks.Manager
 	cfg := &config.Config{
 		DataDir:         t.TempDir(),
 		MaxConcurrent:   2,
+		MaxAttempts:     3,
 		DownloadTimeout: 60,
 	}
 	registry := sources.NewRegistry(db, cfg)
@@ -212,76 +213,6 @@ func TestCancelNonexistent(t *testing.T) {
 	err := downloader.Cancel("nonexistent")
 	if err != ErrFileNotFound {
 		t.Errorf("Cancel() error = %v, want ErrFileNotFound", err)
-	}
-}
-
-func TestCancelByProduct(t *testing.T) {
-	db, registry, hooksManager, cfg := setupTestEnv(t)
-	cfg.MaxConcurrent = 4
-	dl := New(db, registry, hooksManager, cfg)
-
-	adapter := &mockAdapter{
-		downloadFunc: func(ctx context.Context, file sources.FileInfo, w io.Writer, progress sources.ProgressFunc) error {
-			<-ctx.Done()
-			return ctx.Err()
-		},
-	}
-	registry.Register(adapter)
-
-	// Set up two products under the same source
-	db.Create(&database.Source{ID: "mock", Name: "Mock", Enabled: true})
-	db.Create(&database.Product{ID: "prod-a", SourceID: "mock", Name: "Product A"})
-	db.Create(&database.Product{ID: "prod-b", SourceID: "mock", Name: "Product B"})
-	db.Create(&database.Delivery{ID: "del-a", ProductID: "prod-a", Name: "Delivery A"})
-	db.Create(&database.Delivery{ID: "del-b", ProductID: "prod-b", Name: "Delivery B"})
-	db.Create(&database.File{
-		ID: "file-a1", DeliveryID: "del-a", ProductID: "prod-a", SourceID: "mock",
-		FileName: "a1.txt", FileSize: 100,
-	})
-	db.Create(&database.File{
-		ID: "file-b1", DeliveryID: "del-b", ProductID: "prod-b", SourceID: "mock",
-		FileName: "b1.txt", FileSize: 100,
-	})
-
-	var wg sync.WaitGroup
-	var errA1, errB1 error
-
-	// Start download for product A
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		errA1 = dl.Download(context.Background(), "file-a1")
-	}()
-
-	// Start download for product B
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		errB1 = dl.Download(context.Background(), "file-b1")
-	}()
-
-	// Wait for downloads to register in active map
-	time.Sleep(50 * time.Millisecond)
-
-	// Cancel only product A
-	cancelled := dl.CancelByProduct("prod-a")
-	if cancelled != 1 {
-		t.Errorf("CancelByProduct(prod-a) cancelled %d, want 1", cancelled)
-	}
-
-	// Product B should still be active
-	time.Sleep(20 * time.Millisecond)
-	if dl.Cancel("file-b1") != nil {
-		t.Error("file-b1 should still be cancellable (active)")
-	}
-
-	wg.Wait()
-
-	if errA1 != context.Canceled {
-		t.Errorf("file-a1 error = %v, want context.Canceled", errA1)
-	}
-	if errB1 != context.Canceled {
-		t.Errorf("file-b1 error = %v, want context.Canceled", errB1)
 	}
 }
 

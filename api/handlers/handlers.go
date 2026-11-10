@@ -167,7 +167,7 @@ func (h *Handler) GetProduct(w http.ResponseWriter, r *http.Request, id string) 
 }
 
 func (h *Handler) SyncProduct(w http.ResponseWriter, r *http.Request, id string) {
-	if err := h.svc.SyncProduct(r.Context(), id); err != nil {
+	if err := h.svc.TriggerProductSync(r.Context(), id); err != nil {
 		if errors.Is(err, service.ErrNotFound) {
 			writeError(w, http.StatusNotFound, "Product not found")
 		} else {
@@ -226,13 +226,22 @@ func (h *Handler) DownloadFile(w http.ResponseWriter, r *http.Request, id string
 		writeError(w, http.StatusNotFound, "File not found")
 		return
 	}
-	h.svc.DownloadFile(id)
+	if err := h.svc.DownloadFile(id); err != nil {
+		slog.Error("Failed to queue download", "fileID", id, "error", err)
+		writeError(w, http.StatusInternalServerError, "Failed to queue download")
+		return
+	}
 	w.WriteHeader(http.StatusAccepted)
 }
 
 func (h *Handler) CancelDownload(w http.ResponseWriter, r *http.Request, id string) {
 	if err := h.svc.CancelDownload(id); err != nil {
-		writeError(w, http.StatusNotFound, "Download not found or not in progress")
+		if errors.Is(err, service.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "No queued or running download for this file")
+			return
+		}
+		slog.Error("Failed to cancel download", "fileID", id, "error", err)
+		writeError(w, http.StatusInternalServerError, "Failed to cancel download")
 		return
 	}
 	w.WriteHeader(http.StatusOK)
@@ -353,7 +362,7 @@ func (h *Handler) UpdateProductSchedule(w http.ResponseWriter, r *http.Request, 
 		case errors.Is(err, service.ErrNotFound):
 			writeError(w, http.StatusNotFound, "Product not found")
 		case errors.Is(err, service.ErrInvalidSchedule):
-			writeError(w, http.StatusBadRequest, "Invalid schedule configuration")
+			writeError(w, http.StatusBadRequest, err.Error())
 		default:
 			writeError(w, http.StatusInternalServerError, "Failed to update schedule")
 		}
@@ -415,7 +424,12 @@ func (h *Handler) DeleteWebhook(w http.ResponseWriter, r *http.Request, id int) 
 }
 
 func (h *Handler) HealthCheck(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, h.svc.HealthCheck())
+	health := h.svc.HealthCheck(r.Context())
+	status := http.StatusOK
+	if health.Status == generated.Unhealthy {
+		status = http.StatusServiceUnavailable
+	}
+	writeJSON(w, status, health)
 }
 
 func (h *Handler) GetStats(w http.ResponseWriter, r *http.Request) {

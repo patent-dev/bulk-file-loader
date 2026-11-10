@@ -86,6 +86,31 @@ const (
 	DownloadStatusCancelled   = "cancelled"
 )
 
+// DownloadJob is a file waiting for, or in, a download attempt. A finished
+// or cancelled download deletes its job; see docs/download-queue.md.
+type DownloadJob struct {
+	FileID          string `gorm:"primaryKey"`
+	State           string `gorm:"index"`
+	Attempts        int
+	MaxAttempts     int
+	NextAttemptAt   time.Time `gorm:"index"`
+	LastError       string
+	RequestedBy     string `gorm:"index"`
+	ClaimedBy       string
+	LeaseUntil      *time.Time
+	CancelRequested bool `gorm:"default:false"`
+	Version         int
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
+const (
+	JobQueued   = "queued"
+	JobRunning  = "running"
+	JobRetrying = "retrying"
+	JobFailed   = "failed"
+)
+
 type Webhook struct {
 	ID        uint `gorm:"primaryKey"`
 	Name      string
@@ -108,11 +133,13 @@ const (
 	SettingEncryptionSalt = "encryption_salt"
 )
 
-// OptionalTime returns nil for the zero time so it is stored as NULL.
-// MySQL in strict mode rejects the zero date.
+// OptionalTime returns nil for the zero time so it is stored as NULL (MySQL
+// in strict mode rejects the zero date), and the time in UTC otherwise:
+// SQLite stores times as text, so mixed offsets would not compare correctly.
 func OptionalTime(t time.Time) *time.Time {
 	if t.IsZero() {
 		return nil
 	}
-	return &t
+	u := t.UTC()
+	return &u
 }

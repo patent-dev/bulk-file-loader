@@ -3,6 +3,7 @@ package database
 import (
 	"fmt"
 	"log/slog"
+	"time"
 
 	mysqldriver "github.com/go-sql-driver/mysql"
 	"github.com/ncruces/go-sqlite3/gormlite"
@@ -61,8 +62,12 @@ func New(cfg *config.Config) (*DB, error) {
 		return nil, fmt.Errorf("run migrations: %w", err)
 	}
 
+	// Entries left "downloading" by a process that died. Downloads another
+	// process is running right now (a held lease) are not touched.
+	running := db.Model(&DownloadJob{}).Select("file_id").
+		Where("state = ? AND lease_until > ?", JobRunning, time.Now().UTC())
 	result := db.Model(&DownloadEntry{}).
-		Where("status = ?", DownloadStatusDownloading).
+		Where("status = ? AND file_id NOT IN (?)", DownloadStatusDownloading, running).
 		Updates(map[string]any{
 			"status":        DownloadStatusFailed,
 			"error_message": "interrupted by restart",
@@ -85,6 +90,7 @@ func runMigrations(db *gorm.DB) error {
 		&DownloadEntry{},
 		&Webhook{},
 		&Setting{},
+		&DownloadJob{},
 	)
 }
 
@@ -113,4 +119,9 @@ func (db *DB) Close() error {
 		return err
 	}
 	return sqlDB.Close()
+}
+
+// DeleteSetting removes a setting; a missing one is not an error.
+func (db *DB) DeleteSetting(key string) error {
+	return db.Where(clause.Eq{Column: clause.Column{Name: "key"}, Value: key}).Delete(&Setting{}).Error
 }

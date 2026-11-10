@@ -18,8 +18,19 @@ type Registry struct {
 	db       *database.DB
 	cfg      *config.Config
 	adapters map[string]Adapter
+	loaded   map[string]bool // sources whose stored credentials are set on the adapter
 	mu       sync.RWMutex
 }
+
+// Instancer is implemented by adapters that can create an independent copy
+// of themselves, so credentials can be tested without changing the live one.
+type Instancer interface {
+	NewInstance() Adapter
+}
+
+// ErrCredentialsNotLoaded means stored credentials exist but could not be
+// decrypted, usually because the passphrase is not available.
+var ErrCredentialsNotLoaded = fmt.Errorf("stored credentials are not loaded (is BULK_LOADER_PASSPHRASE set?)")
 
 // NewRegistry creates a new source registry
 func NewRegistry(db *database.DB, cfg *config.Config) *Registry {
@@ -27,6 +38,7 @@ func NewRegistry(db *database.DB, cfg *config.Config) *Registry {
 		db:       db,
 		cfg:      cfg,
 		adapters: make(map[string]Adapter),
+		loaded:   make(map[string]bool),
 	}
 }
 
@@ -158,6 +170,7 @@ func (r *Registry) UpdateSource(id string, enabled bool, credentials map[string]
 
 		// Set credentials on adapter
 		adapter.SetCredentials(credentials)
+		r.markLoaded(id)
 	} else if len(existingSource.CredentialsEnc) > 0 {
 		// Load and set existing credentials on adapter
 		credJSON, err := cryptor.DecryptCredentials(existingSource.CredentialsEnc)
@@ -165,6 +178,7 @@ func (r *Registry) UpdateSource(id string, enabled bool, credentials map[string]
 			var existingCreds map[string]string
 			if json.Unmarshal(credJSON, &existingCreds) == nil {
 				adapter.SetCredentials(existingCreds)
+				r.markLoaded(id)
 			}
 		}
 	}
@@ -183,18 +197,51 @@ func (r *Registry) UpdateSource(id string, enabled bool, credentials map[string]
 	}).Create(&source).Error
 }
 
-// TestCredentials tests if the credentials for a source are valid
+// TestCredentials tests credentials for a source on a fresh adapter instance,
+// leaving the live adapter and its stored credentials untouched.
 func (r *Registry) TestCredentials(ctx context.Context, id string, credentials map[string]string) error {
 	adapter, ok := r.Get(id)
 	if !ok {
 		return fmt.Errorf("source not found: %s", id)
 	}
+	inst, ok := adapter.(Instancer)
+	if !ok {
+		// Adapters without credentials have nothing to test.
+		return adapter.ValidateCredentials(ctx)
+	}
+	probe := inst.NewInstance()
+	if configurable, ok := probe.(ConfigurableAdapter); ok {
+		configurable.Configure(AdapterConfig{DownloadTimeoutSeconds: r.cfg.DownloadTimeout})
+	}
+	probe.SetCredentials(credentials)
+	return probe.ValidateCredentials(ctx)
+}
 
-	// Temporarily set credentials
-	adapter.SetCredentials(credentials)
-
-	// Validate
+// TestStoredCredentials validates the credentials stored for a source.
+func (r *Registry) TestStoredCredentials(ctx context.Context, id string) error {
+	adapter, ok := r.Get(id)
+	if !ok {
+		return fmt.Errorf("source not found: %s", id)
+	}
+	if len(adapter.CredentialFields()) > 0 {
+		var source database.Source
+		if err := r.db.Where("id = ?", id).First(&source).Error; err != nil || len(source.CredentialsEnc) == 0 {
+			return fmt.Errorf("no credentials stored for %s", id)
+		}
+		r.mu.RLock()
+		loaded := r.loaded[id]
+		r.mu.RUnlock()
+		if !loaded {
+			return ErrCredentialsNotLoaded
+		}
+	}
 	return adapter.ValidateCredentials(ctx)
+}
+
+func (r *Registry) markLoaded(id string) {
+	r.mu.Lock()
+	r.loaded[id] = true
+	r.mu.Unlock()
 }
 
 // LoadCredentialsWithDecryptor loads and decrypts credentials for all sources
@@ -225,6 +272,7 @@ func (r *Registry) LoadCredentialsWithDecryptor(decryptor CredentialDecryptor) e
 		}
 
 		adapter.SetCredentials(credentials)
+		r.markLoaded(source.ID)
 	}
 
 	return nil

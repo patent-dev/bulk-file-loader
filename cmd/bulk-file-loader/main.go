@@ -1,10 +1,13 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"io/fs"
 	"os"
+	"os/signal"
 	"strconv"
+	"syscall"
 
 	"github.com/patent-dev/bulk-file-loader/internal/core"
 	"github.com/spf13/cobra"
@@ -18,6 +21,8 @@ var rootCmd = &cobra.Command{
 	Use:   "bulk-file-loader",
 	Short: "Bulk patent file downloader and manager",
 	Long:  "Download, manage, and sync patent bulk data files from EPO, USPTO, DPMA, and other sources.",
+	// A failed command prints its error, not the whole usage text.
+	SilenceUsage: true,
 }
 
 // Global flags available to all subcommands.
@@ -74,8 +79,12 @@ func requireCore(opts ...core.Options) (*core.Core, error) {
 	return core.New(o)
 }
 
+// Execute runs the CLI. Ctrl-C or SIGTERM cancels the command's context so
+// long syncs and downloads stop cleanly.
 func Execute() error {
-	return rootCmd.Execute()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	return rootCmd.ExecuteContext(ctx)
 }
 
 func ExitCode(err error) int {

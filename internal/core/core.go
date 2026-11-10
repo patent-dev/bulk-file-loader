@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"log/slog"
 	"os"
 
@@ -19,6 +20,7 @@ import (
 )
 
 type Core struct {
+	cancel     context.CancelCauseFunc
 	Config     *config.Config
 	DB         *database.DB
 	Auth       *auth.Service
@@ -95,18 +97,30 @@ func New(opts Options) (*Core, error) {
 		Hooks:      hooksManager,
 	}
 
+	c.Service = service.New(db, authService, sourceRegistry, dl, nil, hooksManager, opts.Version)
+	ctx, cancel := context.WithCancelCause(context.Background())
+	c.Service.SetContext(ctx)
+	c.cancel = cancel
 	if opts.WithScheduler {
-		c.Scheduler = scheduler.New(db, sourceRegistry, dl, hooksManager)
+		c.Scheduler = scheduler.New(db, c.Service.RunScheduledSync)
+		c.Service.Scheduler = c.Scheduler
 	}
-
-	c.Service = service.New(db, authService, sourceRegistry, dl, c.Scheduler, hooksManager, opts.Version)
 
 	return c, nil
 }
 
+// Close stops background work before the database closes: it cancels the
+// service context, waits for running scheduled jobs and background syncs,
+// then closes the database.
 func (c *Core) Close() {
+	if c.cancel != nil {
+		c.cancel(downloader.ErrShutdown)
+	}
 	if c.Scheduler != nil {
 		c.Scheduler.Stop()
+	}
+	if c.Service != nil {
+		c.Service.Wait()
 	}
 	if c.DB != nil {
 		if sqlDB, err := c.DB.DB.DB(); err == nil {

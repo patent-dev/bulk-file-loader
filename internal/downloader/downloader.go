@@ -39,6 +39,10 @@ type Downloader struct {
 	semaphore chan struct{}
 	progress  *ProgressTracker
 	active    sync.Map // fileID -> *activeDownload
+
+	// OnAttempt, when set, is called after every attempt this process's
+	// queue workers make.
+	OnAttempt func(AttemptResult)
 }
 
 func New(db *database.DB, registry *sources.Registry, hooks *hooks.Manager, cfg *config.Config) *Downloader {
@@ -53,29 +57,25 @@ func New(db *database.DB, registry *sources.Registry, hooks *hooks.Manager, cfg 
 }
 
 func (d *Downloader) Download(ctx context.Context, fileID string) error {
-	if _, loaded := d.active.LoadOrStore(fileID, &activeDownload{}); loaded {
+	// The cancel function exists before the download is registered, so a
+	// Cancel at any point finds one.
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	if _, loaded := d.active.LoadOrStore(fileID, &activeDownload{cancel: cancel}); loaded {
 		return ErrDownloadInProgress
 	}
+	defer d.active.Delete(fileID)
 
 	var file database.File
 	if err := d.db.Preload("Delivery.Product").First(&file, "id = ?", fileID).Error; err != nil {
-		d.active.Delete(fileID)
 		return ErrFileNotFound
 	}
 
 	adapter, ok := d.registry.Get(file.SourceID)
 	if !ok {
-		d.active.Delete(fileID)
 		return ErrSourceNotFound
 	}
-
-	ctx, cancel := context.WithTimeout(ctx, time.Duration(d.cfg.DownloadTimeout)*time.Second)
-
 	d.active.Store(fileID, &activeDownload{cancel: cancel, productID: file.ProductID})
-	defer func() {
-		d.active.Delete(fileID)
-		cancel()
-	}()
 
 	// Acquire semaphore
 	select {
@@ -84,6 +84,10 @@ func (d *Downloader) Download(ctx context.Context, fileID string) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	}
+
+	// The timeout covers the transfer, not the wait for a slot.
+	ctx, timeoutCancel := context.WithTimeout(ctx, time.Duration(d.cfg.DownloadTimeout)*time.Second)
+	defer timeoutCancel()
 
 	// Create download entry
 	now := time.Now()
@@ -99,6 +103,7 @@ func (d *Downloader) Download(ctx context.Context, fileID string) error {
 
 	// Emit download started event
 	d.emitEvent(hooks.EventDownloadStarted, &file, nil)
+	slog.Info("Download started", "fileID", fileID, "file", file.FileName, "listedBytes", file.FileSize)
 
 	// Prepare download path
 	downloadPath := d.getDownloadPath(&file)
@@ -135,6 +140,7 @@ func (d *Downloader) Download(ctx context.Context, fileID string) error {
 
 	var entryMu sync.Mutex
 	var lastDBUpdate time.Time
+	lastLog := now
 	err = adapter.DownloadFile(ctx, fileInfo, writer, func(bytesWritten, totalBytes int64) {
 		d.progress.Update(fileID, bytesWritten, totalBytes)
 
@@ -146,6 +152,12 @@ func (d *Downloader) Download(ctx context.Context, fileID string) error {
 			d.db.Save(entry)
 			lastDBUpdate = time.Now()
 		}
+		// One log line per file at most every 30 seconds keeps long
+		// transfers visible in the server log without flooding it.
+		if time.Since(lastLog) >= progressLogInterval {
+			slog.Info("Download progress", "fileID", fileID, "bytes", bytesWritten, "totalBytes", totalBytes)
+			lastLog = time.Now()
+		}
 		entryMu.Unlock()
 	})
 
@@ -154,6 +166,19 @@ func (d *Downloader) Download(ctx context.Context, fileID string) error {
 	if err != nil {
 		_ = os.Remove(tempPath)
 		if ctx.Err() == context.Canceled {
+			if cause := context.Cause(ctx); errors.Is(cause, ErrShutdown) || errors.Is(cause, errLeaseLost) {
+				// Interrupted by shutdown or by losing the job to another
+				// worker, not by the user: the job stays queued, so no
+				// download.cancelled event.
+				entry.Status = database.DownloadStatusCancelled
+				entry.ErrorMessage = "interrupted by shutdown"
+				if errors.Is(cause, errLeaseLost) {
+					entry.ErrorMessage = errLeaseLost.Error()
+				}
+				d.db.Save(entry)
+				d.progress.IncrementStatusVersion()
+				return context.Cause(ctx)
+			}
 			return d.handleCancelled(entry, &file)
 		}
 		return d.handleError(entry, &file, "DOWNLOAD_ERROR", "Download failed", err)
@@ -191,7 +216,10 @@ func (d *Downloader) Download(ctx context.Context, fileID string) error {
 
 	d.emitCompletedEvent(&file, counter.n, downloadPath, localChecksum, nil)
 
-	slog.Info("Download completed", "fileID", fileID, "path", downloadPath)
+	elapsed := time.Since(now)
+	slog.Info("Download completed", "fileID", fileID, "path", downloadPath,
+		"bytes", counter.n, "duration", elapsed.Round(time.Millisecond).String(),
+		"bytesPerSecond", int64(float64(counter.n)/max(elapsed.Seconds(), 0.001)))
 	return nil
 }
 
@@ -201,19 +229,6 @@ func (d *Downloader) Cancel(fileID string) error {
 		return nil
 	}
 	return ErrFileNotFound
-}
-
-func (d *Downloader) CancelByProduct(productID string) int {
-	var cancelled int
-	d.active.Range(func(key, value any) bool {
-		ad := value.(*activeDownload)
-		if ad.productID == productID {
-			ad.cancel()
-			cancelled++
-		}
-		return true
-	})
-	return cancelled
 }
 
 func (d *Downloader) ActiveDownloads() []DownloadProgress {
@@ -294,6 +309,10 @@ func (d *Downloader) emitCompletedEvent(file *database.File, size int64, path, c
 
 	d.hooks.Emit(context.Background(), event)
 }
+
+// progressLogInterval is the minimum gap between progress log lines of one
+// download.
+const progressLogInterval = 30 * time.Second
 
 // byteCounter counts the bytes written through it.
 type byteCounter struct{ n int64 }

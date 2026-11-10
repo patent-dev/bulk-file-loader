@@ -66,11 +66,11 @@ func setupTestHandler(t *testing.T) (*Handler, *database.DB) {
 	registry := sources.NewRegistry(db, cfg)
 	hooksManager := hooks.New(db)
 	dl := downloader.New(db, registry, hooksManager, cfg)
-	sched := scheduler.New(db, registry, dl, hooksManager)
-
 	registry.Register(&mockAdapter{id: "mock", name: "Mock Source"})
 
-	svc := service.New(db, authService, registry, dl, sched, hooksManager, "test")
+	svc := service.New(db, authService, registry, dl, nil, hooksManager, "test")
+	svc.Scheduler = scheduler.New(db, svc.RunScheduledSync)
+	t.Cleanup(svc.Scheduler.Stop)
 
 	handler := New(svc)
 	return handler, db
@@ -96,6 +96,31 @@ func TestHealthCheck(t *testing.T) {
 	}
 	if resp.Version == nil || *resp.Version == "" {
 		t.Error("Version should be set")
+	}
+	if resp.Database == nil || *resp.Database != generated.Ok {
+		t.Errorf("Database = %v, want ok", resp.Database)
+	}
+	if resp.Scheduler == nil || *resp.Scheduler != generated.Running {
+		t.Errorf("Scheduler = %v, want running", resp.Scheduler)
+	}
+}
+
+func TestHealthCheckUnhealthyWithoutDatabase(t *testing.T) {
+	handler, db := setupTestHandler(t)
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	w := httptest.NewRecorder()
+	handler.HealthCheck(w, httptest.NewRequest(http.MethodGet, "/api/health", nil))
+
+	if w.Code != http.StatusServiceUnavailable {
+		t.Errorf("status = %d, want 503", w.Code)
+	}
+	var resp generated.HealthResponse
+	_ = json.NewDecoder(w.Body).Decode(&resp)
+	if resp.Status != generated.Unhealthy || resp.Database == nil || *resp.Database != generated.Unavailable {
+		t.Errorf("health = %+v, want unhealthy with the database unavailable", resp)
 	}
 }
 

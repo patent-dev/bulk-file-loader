@@ -2,6 +2,8 @@ package cli
 
 import (
 	"fmt"
+	"os"
+	"time"
 
 	"github.com/patent-dev/bulk-file-loader/api/generated"
 	"github.com/spf13/cobra"
@@ -16,7 +18,7 @@ var (
 func init() {
 	productLsCmd.Flags().StringVar(&productSourceFilter, "source", "", "filter by source ID")
 
-	productEnableCmd.Flags().StringVar(&productSchedule, "schedule", "", "check window start (cron expression or time)")
+	productEnableCmd.Flags().StringVar(&productSchedule, "schedule", "", `sync schedule: five-field cron expression ("0 7 * * 1") or descriptor (@daily)`)
 
 	productSyncCmd.Flags().BoolVar(&productSyncAll, "all", false, "sync all products from enabled sources")
 
@@ -56,7 +58,7 @@ var productLsCmd = &cobra.Command{
 			return nil
 		}
 
-		headers := []string{"ID", "Source", "Name", "Auto-DL", "Total", "Downloaded", "Failed"}
+		headers := []string{"ID", "Source", "Name", "Auto-DL", "Schedule", "Total", "Downloaded", "Failed"}
 		rows := make([][]string, 0, len(products))
 		for _, p := range products {
 			rows = append(rows, []string{
@@ -64,6 +66,7 @@ var productLsCmd = &cobra.Command{
 				p.SourceId,
 				p.Name,
 				boolToStr(p.AutoDownload),
+				deref(p.CheckWindowStart, ""),
 				fmt.Sprintf("%d", deref(p.TotalFiles, 0)),
 				fmt.Sprintf("%d", deref(p.DownloadedFiles, 0)),
 				fmt.Sprintf("%d", deref(p.FailedFiles, 0)),
@@ -108,8 +111,9 @@ var productShowCmd = &cobra.Command{
 			{"Name", product.Name},
 			{"Description", deref(product.Description, "")},
 			{"Auto-Download", boolToStr(product.AutoDownload)},
-			{"Check Window", deref(product.CheckWindowStart, "")},
-			{"Last Checked", lastChecked},
+			{"Schedule", deref(product.CheckWindowStart, "")},
+			{"Next Run", nextRunText(product.AutoDownload, product.CheckWindowStart, product.NextRun)},
+			{"Last Run", lastChecked},
 			{"Total Files", fmt.Sprintf("%d", deref(product.TotalFiles, 0))},
 			{"Downloaded", fmt.Sprintf("%d", deref(product.DownloadedFiles, 0))},
 			{"Failed", fmt.Sprintf("%d", deref(product.FailedFiles, 0))},
@@ -137,6 +141,8 @@ var productSyncCmd = &cobra.Command{
 		}
 		defer c.Close()
 
+		ctx := cmd.Context()
+		sum := newSyncSummary()
 		if productSyncAll {
 			// Sync all products from enabled sources
 			sources, err := c.Service.ListSources()
@@ -147,34 +153,24 @@ var productSyncCmd = &cobra.Command{
 				if !src.Enabled {
 					continue
 				}
-				if !flagQuiet {
-					_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Syncing source %s...\n", src.Id)
-				}
-				if err := c.Service.SyncSourceProducts(src.Id); err != nil {
-					return fmt.Errorf("failed to sync products for source %s: %w", src.Id, err)
-				}
-				if err := c.Service.SyncSourceFiles(src.Id); err != nil {
-					return fmt.Errorf("failed to sync files for source %s: %w", src.Id, err)
+				if err := syncSource(ctx, c, src.Id, sum); err != nil {
+					return err
 				}
 			}
+		} else {
 			if !flagQuiet {
-				_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Sync complete")
+				_, _ = fmt.Fprintf(os.Stderr, "Syncing product %s...\n", args[0])
 			}
-			return nil
+			// Errors of the product itself are counted by the progress
+			// callback; anything before it (unknown product, product list
+			// unavailable) is returned as is.
+			before := sum.products
+			if err := c.Service.SyncProductFull(ctx, args[0], sum.progress); err != nil && sum.products == before {
+				return err
+			}
 		}
-
-		if !flagQuiet {
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Syncing product %s...\n", args[0])
-		}
-
-		if err := c.Service.SyncProductFull(args[0]); err != nil {
-			return err
-		}
-
-		if !flagQuiet {
-			_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Sync complete")
-		}
-		return nil
+		sum.print()
+		return sum.result()
 	},
 }
 
@@ -193,7 +189,8 @@ var productEnableCmd = &cobra.Command{
 		req := generated.UpdateScheduleRequest{
 			AutoDownload: &autoDownload,
 		}
-		if productSchedule != "" {
+		// An explicitly empty --schedule "" clears the schedule.
+		if cmd.Flags().Changed("schedule") {
 			req.CheckWindowStart = &productSchedule
 		}
 
@@ -207,9 +204,31 @@ var productEnableCmd = &cobra.Command{
 			return nil
 		}
 
-		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Auto-download enabled for %s\n", schedule.ProductId)
+		out := cmd.OutOrStdout()
+		_, _ = fmt.Fprintf(out, "Auto-download enabled for %s\n", schedule.ProductId)
+		_, _ = fmt.Fprintf(out, "Schedule: %s\n", deref(schedule.CheckWindowStart, "none"))
+		_, _ = fmt.Fprintf(out, "Next run: %s\n", nextRunText(true, schedule.CheckWindowStart, schedule.NextRun))
+		if n, err := c.Service.PendingFileCount(schedule.ProductId); err == nil && n > 0 {
+			_, _ = fmt.Fprintf(os.Stderr, "%d files queued; without a running server, download them with 'bulk-file-loader download all --product %s'.\n", n, schedule.ProductId)
+		}
+		if !flagQuiet {
+			_, _ = fmt.Fprintln(os.Stderr, "A running server applies the schedule within 30 seconds and downloads queued files.")
+		}
 		return nil
 	},
+}
+
+// nextRunText describes when a product is synced next.
+func nextRunText(autoDownload bool, schedule *string, next *time.Time) string {
+	switch {
+	case !autoDownload:
+		return "never (auto-download off)"
+	case schedule == nil || *schedule == "":
+		return "never (no schedule)"
+	case next == nil:
+		return "unknown"
+	}
+	return fmtTime(next)
 }
 
 var productDisableCmd = &cobra.Command{

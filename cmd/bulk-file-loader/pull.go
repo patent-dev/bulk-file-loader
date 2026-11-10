@@ -2,9 +2,7 @@ package cli
 
 import (
 	"fmt"
-	"os"
 
-	"github.com/patent-dev/bulk-file-loader/api/generated"
 	"github.com/spf13/cobra"
 )
 
@@ -16,6 +14,7 @@ var (
 func init() {
 	pullCmd.Flags().StringVar(&pullSource, "source", "", "filter by source ID")
 	pullCmd.Flags().StringVar(&pullProduct, "product", "", "filter by product ID")
+	pullCmd.Flags().BoolVar(&downloadWait, "wait", false, "with a running server, wait until the files are downloaded")
 	rootCmd.AddCommand(pullCmd)
 }
 
@@ -51,6 +50,7 @@ var pullCmd = &cobra.Command{
 			}
 		}
 
+		sum := newSyncSummary()
 		for _, src := range sources {
 			if !src.Enabled {
 				continue
@@ -58,57 +58,36 @@ var pullCmd = &cobra.Command{
 			if effectiveSource != "" && src.Id != effectiveSource {
 				continue
 			}
-			if !flagQuiet {
-				_, _ = fmt.Fprintf(os.Stderr, "Syncing source %s...\n", src.Id)
-			}
-			if err := c.Service.SyncSourceProducts(src.Id); err != nil {
-				return fmt.Errorf("failed to sync products for source %s: %w", src.Id, err)
-			}
-			if err := c.Service.SyncSourceFiles(src.Id); err != nil {
-				return fmt.Errorf("failed to sync files for source %s: %w", src.Id, err)
-			}
-		}
-
-		// Phase 2: download
-		var sourcePtr, productPtr *string
-		if pullSource != "" {
-			sourcePtr = &pullSource
-		}
-		if pullProduct != "" {
-			productPtr = &pullProduct
-		}
-
-		status := generated.ListFilesParamsStatus("available")
-		var allFiles []generated.File
-		offset := 0
-		const pageSize = 500
-		for {
-			result, err := c.Service.ListFiles(sourcePtr, productPtr, &status, offset, pageSize)
-			if err != nil {
+			if err := syncSource(cmd.Context(), c, src.Id, sum); err != nil {
 				return err
 			}
-			allFiles = append(allFiles, result.Files...)
-			if len(allFiles) >= result.Total || len(result.Files) < pageSize {
-				break
-			}
-			offset += pageSize
+		}
+		sum.print()
+
+		// Phase 2: download
+		allFiles, err := waitingFiles(c, pullSource, pullProduct)
+		if err != nil {
+			return err
 		}
 
 		if len(allFiles) == 0 {
 			if !flagQuiet {
 				_, _ = fmt.Fprintln(cmd.OutOrStdout(), "No available files to download")
 			}
-			return nil
-		}
-
-		if !flagQuiet {
-			_, _ = fmt.Fprintf(os.Stderr, "Downloading %d files...\n", len(allFiles))
+			return sum.result()
 		}
 
 		items := make([]downloadItem, len(allFiles))
 		for i, f := range allFiles {
 			items[i] = downloadItem{ID: f.Id, Name: f.FileName}
 		}
-		return runDownloads(c.Downloader, items)
+		if err := runDownloads(cmd.Context(), c, items); err != nil {
+			return err
+		}
+		// The downloads succeeded, but the catalogue may be missing files.
+		if sum.failed > 0 {
+			return partialError{}
+		}
+		return nil
 	},
 }

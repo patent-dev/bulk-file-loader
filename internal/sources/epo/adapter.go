@@ -2,6 +2,7 @@ package epo
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"strconv"
@@ -66,6 +67,10 @@ func (a *Adapter) Configure(cfg sources.AdapterConfig) {
 	a.downloadTimeout = cfg.DownloadTimeoutSeconds
 	a.client = nil
 }
+
+// NewInstance returns an independent, unconfigured adapter of the same kind,
+// used to test credentials without touching this one.
+func (a *Adapter) NewInstance() sources.Adapter { return New() }
 
 // SetCredentials sets the credentials for the adapter
 func (a *Adapter) SetCredentials(creds map[string]string) {
@@ -218,7 +223,7 @@ func (a *Adapter) DownloadFile(ctx context.Context, file sources.FileInfo, dst i
 	})
 
 	if err != nil {
-		return err // Pass through original error, downloader will add context
+		return downloadError(err)
 	}
 
 	return nil
@@ -278,4 +283,21 @@ func parseFileSize(sizeStr string) int64 {
 	}
 
 	return 0
+}
+
+// downloadError maps the client's typed errors to adapter error codes, so the
+// download queue can tell permanent failures from transient ones.
+func downloadError(err error) error {
+	var authErr *bdds.AuthError
+	var notFound *bdds.NotFoundError
+	var rateLimit *bdds.RateLimitError
+	switch {
+	case errors.As(err, &authErr):
+		return sources.NewAdapterError(sources.ErrCodeAuth, "EPO BDDS rejected the credentials", err)
+	case errors.As(err, &notFound):
+		return sources.NewAdapterError(sources.ErrCodeNotFound, "File not found on EPO BDDS", err)
+	case errors.As(err, &rateLimit):
+		return sources.NewAdapterError(sources.ErrCodeRateLimit, "Rate limited by EPO BDDS", err)
+	}
+	return err
 }

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/patent-dev/bulk-file-loader/api/generated"
 	"github.com/patent-dev/bulk-file-loader/internal/core"
 	"github.com/spf13/cobra"
 )
@@ -18,11 +17,14 @@ var (
 )
 
 func init() {
-	fileLsCmd.Flags().StringVar(&fileProductFilter, "product", "", "filter by product ID")
-	fileLsCmd.Flags().StringVar(&fileSourceFilter, "source", "", "filter by source ID")
-	fileLsCmd.Flags().StringVar(&fileStatusFilter, "status", "", "filter by status (available, downloading, downloaded, failed, skipped, cancelled)")
-	fileLsCmd.Flags().IntVar(&fileLimit, "limit", 50, "maximum number of results")
+	addFileFilterFlags(fileLsCmd)
+	fileLsCmd.Flags().IntVar(&fileLimit, "limit", 50, "maximum number of results, 0 for all")
 	fileLsCmd.Flags().IntVar(&fileOffset, "offset", 0, "offset for pagination")
+	fileDownloadCmd.Flags().BoolVar(&downloadWait, "wait", false, "with a running server, wait until the files are downloaded")
+	for _, cmd := range []*cobra.Command{fileSkipCmd, fileUnskipCmd, fileDownloadCmd} {
+		addFileFilterFlags(cmd)
+		cmd.Flags().BoolVar(&fileDryRun, "dry-run", false, "list the matching files without acting on them")
+	}
 
 	fileCmd.AddCommand(fileLsCmd, fileShowCmd, fileDownloadCmd, fileCancelCmd, fileSkipCmd, fileUnskipCmd, fileResetCmd, fileDeleteCmd)
 	rootCmd.AddCommand(fileCmd)
@@ -43,27 +45,14 @@ var fileLsCmd = &cobra.Command{
 		}
 		defer c.Close()
 
-		if fileLimit < 0 {
-			fileLimit = 0
+		if fileLimit < 0 || fileOffset < 0 {
+			return fmt.Errorf("--limit and --offset must not be negative (--limit 0 lists all)")
 		}
-		if fileOffset < 0 {
-			fileOffset = 0
+		filter, _, err := fileFilterFromFlags()
+		if err != nil {
+			return err
 		}
-
-		var sourcePtr, productPtr *string
-		if fileSourceFilter != "" {
-			sourcePtr = &fileSourceFilter
-		}
-		if fileProductFilter != "" {
-			productPtr = &fileProductFilter
-		}
-		var statusPtr *generated.ListFilesParamsStatus
-		if fileStatusFilter != "" {
-			s := generated.ListFilesParamsStatus(fileStatusFilter)
-			statusPtr = &s
-		}
-
-		result, err := c.Service.ListFiles(sourcePtr, productPtr, statusPtr, fileOffset, fileLimit)
+		result, err := c.Service.ListFilesFiltered(filter, fileOffset, fileLimit)
 		if err != nil {
 			return err
 		}
@@ -75,7 +64,7 @@ var fileLsCmd = &cobra.Command{
 			return nil
 		}
 
-		headers := []string{"ID", "Name", "Status", "Size", "Product", "Released"}
+		headers := []string{"ID", "Name", "Status", "Attempts", "Size", "Product", "Released", "Error"}
 		rows := make([][]string, 0, len(result.Files))
 		for _, f := range result.Files {
 			released := fmtTime(f.ReleasedAt)
@@ -83,13 +72,19 @@ var fileLsCmd = &cobra.Command{
 			if f.FileSize != nil {
 				size = formatBytes(*f.FileSize)
 			}
+			attempts := ""
+			if f.Attempts != nil && f.MaxAttempts != nil {
+				attempts = fmt.Sprintf("%d/%d", *f.Attempts, *f.MaxAttempts)
+			}
 			rows = append(rows, []string{
 				f.Id,
 				f.FileName,
 				string(f.Status),
+				attempts,
 				size,
 				deref(f.ProductId, ""),
 				released,
+				truncate(deref(f.ErrorMessage, ""), 60),
 			})
 		}
 
@@ -101,7 +96,11 @@ var fileLsCmd = &cobra.Command{
 		}
 
 		if !flagQuiet {
-			_, _ = fmt.Fprintf(os.Stderr, "Showing %d of %d files\n", len(result.Files), result.Total)
+			hint := ""
+			if len(result.Files) < result.Total {
+				hint = "; --limit 0 for all"
+			}
+			_, _ = fmt.Fprintf(os.Stderr, "Showing %d of %d files, newest first%s\n", len(result.Files), result.Total, hint)
 		}
 
 		return formatOutput(headers, rows, result.Files)
@@ -148,6 +147,12 @@ var fileShowCmd = &cobra.Command{
 		if r := fmtTime(file.ReleasedAt); r != "" {
 			rows = append(rows, []string{"Released", r})
 		}
+		if file.Attempts != nil && file.MaxAttempts != nil {
+			rows = append(rows, []string{"Attempts", fmt.Sprintf("%d of %d", *file.Attempts, *file.MaxAttempts)})
+		}
+		if n := fmtTime(file.NextAttemptAt); n != "" {
+			rows = append(rows, []string{"Next Attempt", n})
+		}
 		if file.ErrorMessage != nil {
 			rows = append(rows, []string{"Error", *file.ErrorMessage})
 		}
@@ -173,9 +178,9 @@ var fileShowCmd = &cobra.Command{
 }
 
 var fileDownloadCmd = &cobra.Command{
-	Use:   "download <id>...",
-	Short: "Download one or more files",
-	Args:  cobra.MinimumNArgs(1),
+	Use:   "download [<id>...]",
+	Short: "Download files by ID or by filter",
+	Long:  "Download the given files, or every file matching the filters. Without --status, filters skip files that are downloaded, downloading or skipped.",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c, err := requireCore()
 		if err != nil {
@@ -183,11 +188,19 @@ var fileDownloadCmd = &cobra.Command{
 		}
 		defer c.Close()
 
-		items := make([]downloadItem, len(args))
-		for i, id := range args {
-			items[i] = downloadItem{ID: id, Name: id}
+		files, err := selectFiles(c, args, "downloaded", "downloading", "skipped")
+		if err != nil {
+			return err
 		}
-		return runDownloads(c.Downloader, items)
+		if fileDryRun {
+			printDryRun("download", files)
+			return nil
+		}
+		items := make([]downloadItem, len(files))
+		for i, f := range files {
+			items[i] = downloadItem{ID: f.Id, Name: f.FileName}
+		}
+		return runDownloads(cmd.Context(), c, items)
 	},
 }
 
@@ -203,22 +216,20 @@ var fileCancelCmd = &cobra.Command{
 }
 
 var fileSkipCmd = &cobra.Command{
-	Use:   "skip <id>...",
-	Short: "Mark files as skipped",
-	Args:  cobra.MinimumNArgs(1),
+	Use:   "skip [<id>...]",
+	Short: "Mark files as skipped, by ID or by filter",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return runBulkFileAction(cmd, args, "skip", func(c *core.Core, id string) error {
+		return runFilteredFileAction(cmd, args, "skip", func(c *core.Core, id string) error {
 			return c.Service.SkipFile(id)
 		})
 	},
 }
 
 var fileUnskipCmd = &cobra.Command{
-	Use:   "unskip <id>...",
-	Short: "Remove skip flag from files",
-	Args:  cobra.MinimumNArgs(1),
+	Use:   "unskip [<id>...]",
+	Short: "Remove the skip flag from files, by ID or by filter",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return runBulkFileAction(cmd, args, "unskip", func(c *core.Core, id string) error {
+		return runFilteredFileAction(cmd, args, "unskip", func(c *core.Core, id string) error {
 			return c.Service.UnskipFile(id)
 		})
 	},
@@ -252,7 +263,37 @@ func runBulkFileAction(cmd *cobra.Command, ids []string, action string, fn func(
 		return fmt.Errorf("initialization failed: %w", err)
 	}
 	defer c.Close()
+	return applyFileAction(cmd, c, ids, action, fn)
+}
 
+// runFilteredFileAction applies fn to the files given by ID or selected by
+// the filter flags.
+func runFilteredFileAction(cmd *cobra.Command, args []string, action string, fn func(*core.Core, string) error) error {
+	c, err := requireCore()
+	if err != nil {
+		return fmt.Errorf("initialization failed: %w", err)
+	}
+	defer c.Close()
+
+	files, err := selectFiles(c, args)
+	if err != nil {
+		return err
+	}
+	if fileDryRun {
+		printDryRun(action, files)
+		return nil
+	}
+	ids := make([]string, len(files))
+	for i, f := range files {
+		ids[i] = f.Id
+	}
+	if len(args) == 0 && !flagQuiet {
+		_, _ = fmt.Fprintf(os.Stderr, "%d files match\n", len(ids))
+	}
+	return applyFileAction(cmd, c, ids, action, fn)
+}
+
+func applyFileAction(cmd *cobra.Command, c *core.Core, ids []string, action string, fn func(*core.Core, string) error) error {
 	hadError := false
 	for _, id := range ids {
 		if err := fn(c, id); err != nil {
@@ -273,4 +314,13 @@ func runBulkFileAction(cmd *cobra.Command, ids []string, action string, fn func(
 		return fmt.Errorf("%s failed", action)
 	}
 	return nil
+}
+
+// truncate shortens s to at most n runes for table output.
+func truncate(s string, n int) string {
+	r := []rune(s)
+	if len(r) <= n {
+		return s
+	}
+	return string(r[:n-3]) + "..."
 }

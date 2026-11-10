@@ -5,6 +5,8 @@ import (
 	"os"
 
 	"github.com/patent-dev/bulk-file-loader/api/generated"
+	"github.com/patent-dev/bulk-file-loader/internal/core"
+	"github.com/patent-dev/bulk-file-loader/internal/service"
 	"github.com/spf13/cobra"
 )
 
@@ -23,6 +25,7 @@ func init() {
 
 	downloadAllCmd.Flags().StringVar(&dlAllProduct, "product", "", "filter by product ID")
 	downloadAllCmd.Flags().StringVar(&dlAllSource, "source", "", "filter by source ID")
+	downloadAllCmd.Flags().BoolVar(&downloadWait, "wait", false, "with a running server, wait until the files are downloaded")
 
 	downloadCmd.AddCommand(downloadHistoryCmd, downloadAllCmd)
 	rootCmd.AddCommand(downloadCmd)
@@ -105,7 +108,7 @@ var downloadHistoryCmd = &cobra.Command{
 
 var downloadAllCmd = &cobra.Command{
 	Use:   "all",
-	Short: "Download all available files",
+	Short: "Download all available and queued files",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c, err := requireCore()
 		if err != nil {
@@ -113,28 +116,9 @@ var downloadAllCmd = &cobra.Command{
 		}
 		defer c.Close()
 
-		var sourcePtr, productPtr *string
-		if dlAllSource != "" {
-			sourcePtr = &dlAllSource
-		}
-		if dlAllProduct != "" {
-			productPtr = &dlAllProduct
-		}
-
-		status := generated.ListFilesParamsStatus("available")
-		var allFiles []generated.File
-		offset := 0
-		const pageSize = 500
-		for {
-			result, err := c.Service.ListFiles(sourcePtr, productPtr, &status, offset, pageSize)
-			if err != nil {
-				return err
-			}
-			allFiles = append(allFiles, result.Files...)
-			if len(allFiles) >= result.Total || len(result.Files) < pageSize {
-				break
-			}
-			offset += pageSize
+		allFiles, err := waitingFiles(c, dlAllSource, dlAllProduct)
+		if err != nil {
+			return err
 		}
 
 		if len(allFiles) == 0 {
@@ -144,14 +128,28 @@ var downloadAllCmd = &cobra.Command{
 			return nil
 		}
 
-		if !flagQuiet {
-			_, _ = fmt.Fprintf(os.Stderr, "Downloading %d files...\n", len(allFiles))
-		}
-
 		items := make([]downloadItem, len(allFiles))
 		for i, f := range allFiles {
 			items[i] = downloadItem{ID: f.Id, Name: f.FileName}
 		}
-		return runDownloads(c.Downloader, items)
+		return runDownloads(cmd.Context(), c, items)
 	},
+}
+
+// waitingFiles selects the files download all and pull fetch: available
+// ones and those already waiting in the queue (left by an interrupted
+// command or queued without a running server).
+func waitingFiles(c *core.Core, sourceID, productID string) ([]generated.File, error) {
+	result, err := c.Service.ListFilesFiltered(service.FileFilter{SourceID: sourceID, ProductID: productID}, 0, 0)
+	if err != nil {
+		return nil, err
+	}
+	var files []generated.File
+	for _, f := range result.Files {
+		switch f.Status {
+		case generated.FileStatusAvailable, generated.FileStatusQueued, generated.FileStatusRetrying:
+			files = append(files, f)
+		}
+	}
+	return files, nil
 }

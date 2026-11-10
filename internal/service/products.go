@@ -2,12 +2,14 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
-	"sync"
+	"time"
 
 	"github.com/patent-dev/bulk-file-loader/api/generated"
 	"github.com/patent-dev/bulk-file-loader/internal/database"
+	"github.com/patent-dev/bulk-file-loader/internal/scheduler"
 )
 
 type productCounts struct {
@@ -127,6 +129,7 @@ func (s *Service) GetProduct(id string) (generated.ProductWithDeliveries, error)
 		ExternalId:       p.ExternalId,
 		Description:      p.Description,
 		CheckWindowStart: p.CheckWindowStart,
+		NextRun:          p.NextRun,
 		LastCheckedAt:    p.LastCheckedAt,
 		TotalFiles:       p.TotalFiles,
 		DownloadedFiles:  p.DownloadedFiles,
@@ -142,15 +145,18 @@ func (s *Service) GetProduct(id string) (generated.ProductWithDeliveries, error)
 	return result, nil
 }
 
-func (s *Service) SyncProduct(ctx context.Context, id string) error {
+// TriggerProductSync starts a product sync: in the background on the server,
+// synchronously otherwise.
+func (s *Service) TriggerProductSync(ctx context.Context, id string) error {
 	var product database.Product
 	if err := s.DB.First(&product, "id = ?", id).Error; err != nil {
 		return fmt.Errorf("%w: product %s", ErrNotFound, id)
 	}
 	if s.Scheduler != nil {
-		return s.Scheduler.SyncNow(ctx, id)
+		s.goBackground(func(context.Context) { s.RunScheduledSync(id) })
+		return nil
 	}
-	return s.SyncProductFull(id)
+	return s.SyncProductFull(ctx, id, nil)
 }
 
 func (s *Service) UpdateProductSchedule(productID string, req generated.UpdateScheduleRequest) (generated.ProductSchedule, error) {
@@ -171,27 +177,49 @@ func (s *Service) UpdateProductSchedule(productID string, req generated.UpdateSc
 		product.CheckWindowEnd = *req.CheckWindowEnd
 	}
 
-	// Validate schedule before saving
-	if s.Scheduler != nil {
-		if err := s.Scheduler.ScheduleProduct(&product); err != nil {
+	// Validate a newly given schedule, and the stored one whenever it will
+	// run. An old schedule that no longer parses must not block disabling
+	// auto-download or clearing it.
+	if (req.CheckWindowStart != nil || product.AutoDownload) && product.CheckWindowStart != "" {
+		if _, err := scheduler.NextRun(product.CheckWindowStart, time.Now()); err != nil {
 			return generated.ProductSchedule{}, fmt.Errorf("%w: %v", ErrInvalidSchedule, err)
 		}
 	}
 
-	if err := s.DB.Save(&product).Error; err != nil {
+	// Only the schedule columns: a full save would overwrite a sync's
+	// last_checked_at written meanwhile.
+	if err := s.DB.Model(&database.Product{}).Where("id = ?", product.ID).Updates(map[string]any{
+		"auto_download":      product.AutoDownload,
+		"check_window_start": product.CheckWindowStart,
+		"check_window_end":   product.CheckWindowEnd,
+	}).Error; err != nil {
 		return generated.ProductSchedule{}, fmt.Errorf("failed to update schedule: %w", err)
 	}
 
-	// If auto-download was just disabled, cancel in-progress downloads for this product
-	if wasAutoDownload && !product.AutoDownload {
-		if cancelled := s.Downloader.CancelByProduct(product.ID); cancelled > 0 {
-			slog.Info("Cancelled active downloads", "productID", product.ID, "count", cancelled)
+	// The server runs a schedule only while auto-download is on, as on
+	// startup (loadSchedules).
+	if s.Scheduler != nil {
+		if product.AutoDownload {
+			if err := s.Scheduler.ScheduleProduct(&product); err != nil {
+				return generated.ProductSchedule{}, fmt.Errorf("%w: %v", ErrInvalidSchedule, err)
+			}
+		} else {
+			s.Scheduler.UnscheduleProduct(product.ID)
 		}
 	}
 
-	// If auto-download was just enabled, trigger immediate download of pending files
+	// If auto-download was just disabled, stop the downloads it started
+	// (queued by enabling it or by scheduled syncs), not ones a user asked for.
+	if wasAutoDownload && !product.AutoDownload {
+		s.stopAutoDownloads(product.ID)
+	}
+
+	// If auto-download was just enabled, queue the pending files: a running
+	// server downloads them, or the CLI's download all.
 	if product.AutoDownload && !wasAutoDownload {
-		go s.DownloadPendingFiles(product.ID)
+		if err := s.DownloadPendingFiles(product.ID); err != nil {
+			slog.Error("Failed to queue pending downloads", "productID", product.ID, "error", err)
+		}
 	}
 
 	schedule := generated.ProductSchedule{
@@ -202,61 +230,75 @@ func (s *Service) UpdateProductSchedule(productID string, req generated.UpdateSc
 	if product.CheckWindowStart != "" {
 		schedule.CheckWindowStart = &product.CheckWindowStart
 	}
-	if s.Scheduler != nil {
-		if nextRun := s.Scheduler.GetNextRun(product.ID); nextRun != nil {
-			schedule.NextRun = nextRun
-		}
-	}
+	schedule.NextRun = nextRun(product)
 
 	return schedule, nil
 }
 
-func (s *Service) DownloadPendingFiles(productID string) {
-	var files []database.File
-	if err := s.DB.Where("product_id = ? AND skipped = ?", productID, false).Find(&files).Error; err != nil {
-		slog.Error("Failed to query pending files", "productID", productID, "error", err)
+// nextRun is the product's next scheduled sync, or nil when it has none.
+func nextRun(p database.Product) *time.Time {
+	if !p.AutoDownload || p.CheckWindowStart == "" {
+		return nil
+	}
+	next, err := scheduler.NextRun(p.CheckWindowStart, time.Now())
+	if err != nil {
+		return nil
+	}
+	return &next
+}
+
+// PendingFileCount counts a product's files that are neither skipped nor
+// downloaded.
+func (s *Service) PendingFileCount(productID string) (int64, error) {
+	var n int64
+	err := s.DB.Model(&database.File{}).
+		Where("product_id = ? AND skipped = ?", productID, false).
+		Where("id NOT IN (SELECT file_id FROM download_entries WHERE status = ?)", database.DownloadStatusCompleted).
+		Count(&n).Error
+	return n, err
+}
+
+// DownloadPendingFiles queues every file of a product that is neither
+// skipped nor downloaded.
+func (s *Service) DownloadPendingFiles(productID string) error {
+	ids, err := s.pendingFileIDs(productID)
+	if err != nil {
+		return err
+	}
+	n, err := s.Downloader.Enqueue(ids, "auto")
+	if err != nil {
+		return err
+	}
+	slog.Info("Queued pending downloads", "productID", productID, "count", n)
+	return nil
+}
+
+func (s *Service) stopAutoDownloads(productID string) {
+	var ids []string
+	if err := s.DB.Model(&database.DownloadJob{}).
+		Joins("JOIN files ON files.id = download_jobs.file_id").
+		Where("files.product_id = ? AND download_jobs.requested_by IN ?", productID, []string{"auto", "schedule"}).
+		Pluck("download_jobs.file_id", &ids).Error; err != nil {
+		slog.Error("Failed to find auto-download jobs", "productID", productID, "error", err)
 		return
 	}
-
-	var pending []string
-	for _, file := range files {
-		var entry database.DownloadEntry
-		err := s.DB.Where("file_id = ? AND status = ?", file.ID, database.DownloadStatusCompleted).First(&entry).Error
-		if err == nil {
-			continue
+	for _, id := range ids {
+		if err := s.CancelDownload(id); err != nil && !errors.Is(err, ErrNotFound) {
+			slog.Error("Failed to stop auto-download", "fileID", id, "error", err)
 		}
-		pending = append(pending, file.ID)
 	}
+	if len(ids) > 0 {
+		slog.Info("Stopped auto-downloads", "productID", productID, "count", len(ids))
+	}
+}
 
-	if len(pending) == 0 {
-		return
-	}
-
-	ch := make(chan string, len(pending))
-	for _, id := range pending {
-		ch <- id
-	}
-	close(ch)
-
-	workers := s.Downloader.MaxConcurrent()
-	if workers <= 0 {
-		workers = 3
-	}
-
-	var wg sync.WaitGroup
-	for range workers {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for id := range ch {
-				if err := s.Downloader.Download(context.Background(), id); err != nil {
-					slog.Error("Auto-download failed", "fileID", id, "error", err)
-				}
-			}
-		}()
-	}
-	wg.Wait()
-	slog.Info("Pending downloads completed", "productID", productID, "count", len(pending))
+func (s *Service) pendingFileIDs(productID string) ([]string, error) {
+	var ids []string
+	err := s.DB.Model(&database.File{}).
+		Where("product_id = ? AND skipped = ?", productID, false).
+		Where("id NOT IN (SELECT file_id FROM download_entries WHERE status = ?)", database.DownloadStatusCompleted).
+		Pluck("id", &ids).Error
+	return ids, err
 }
 
 func convertProduct(p database.Product) generated.Product {
@@ -275,6 +317,7 @@ func convertProduct(p database.Product) generated.Product {
 	if p.CheckWindowStart != "" {
 		result.CheckWindowStart = &p.CheckWindowStart
 	}
+	result.NextRun = nextRun(p)
 	if p.LastCheckedAt != nil {
 		result.LastCheckedAt = p.LastCheckedAt
 	}

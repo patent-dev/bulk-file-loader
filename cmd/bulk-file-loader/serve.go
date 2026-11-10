@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/fs"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -66,6 +67,8 @@ func runServe(cmd *cobra.Command, args []string) error {
 		BaseRouter:  mux,
 		Middlewares: []generated.MiddlewareFunc{apiHandler.AuthService().Middleware},
 	})
+	// Public alias of /api/health for container and orchestrator probes.
+	mux.HandleFunc("GET /healthz", apiHandler.HealthCheck)
 
 	if c.Config.DevMode && c.Config.ViteProxy != "" {
 		slog.Info("Dev mode: proxying to Vite", "url", c.Config.ViteProxy)
@@ -113,10 +116,19 @@ func runServe(cmd *cobra.Command, args []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
+	// Bind the port first: a second serve that cannot bind must not start
+	// workers or overwrite the running server's heartbeat.
+	listener, err := net.Listen("tcp", server.Addr)
+	if err != nil {
+		return fmt.Errorf("listen on %s: %w", server.Addr, err)
+	}
+	// Download workers, heartbeat and schedule reload; stopped by c.Close.
+	c.Service.RunServer()
+
 	errCh := make(chan error, 1)
 	go func() {
 		slog.Info("Server listening", "addr", server.Addr)
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := server.Serve(listener); err != nil && err != http.ErrServerClosed {
 			errCh <- fmt.Errorf("server error: %w", err)
 		}
 	}()

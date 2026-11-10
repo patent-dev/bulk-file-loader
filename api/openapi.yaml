@@ -301,7 +301,7 @@ paths:
           in: query
           schema:
             type: string
-            enum: [available, downloading, downloaded, failed, skipped, deleted]
+            enum: [available, queued, downloading, retrying, downloaded, failed, skipped, deleted, cancelled]
         - name: offset
           in: query
           schema:
@@ -375,7 +375,8 @@ paths:
   /files/{id}/download:
     post:
       tags: [files]
-      summary: Trigger file download
+      summary: Queue a file for download
+      description: Adds the file to the download queue; a given-up file starts over. Requesting a file that is already queued or downloading changes nothing.
       operationId: downloadFile
       security:
         - cookieAuth: []
@@ -388,15 +389,15 @@ paths:
             type: string
       responses:
         '202':
-          description: Download started
+          description: Download queued
         '404':
           description: File not found
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-        '409':
-          description: Download already in progress
+        '500':
+          description: The download could not be queued
           content:
             application/json:
               schema:
@@ -405,7 +406,8 @@ paths:
   /files/{id}/cancel:
     post:
       tags: [files]
-      summary: Cancel file download
+      summary: Cancel a queued or running download
+      description: Removes a queued or retrying file from the queue, or stops its running download; a download running in another process stops within 30 seconds.
       operationId: cancelDownload
       security:
         - cookieAuth: []
@@ -418,9 +420,15 @@ paths:
             type: string
       responses:
         '200':
-          description: Download cancelled
+          description: Download cancelled, or cancel requested
         '404':
-          description: File or download not found
+          description: No queued or running download for this file
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: The cancel could not be recorded
           content:
             application/json:
               schema:
@@ -590,6 +598,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ProductSchedule'
+        '400':
+          description: Invalid request body or schedule expression
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '404':
           description: Product not found
           content:
@@ -703,10 +717,17 @@ paths:
     get:
       tags: [system]
       summary: Health check
+      description: Public. Also served as /healthz for container health checks.
       operationId: healthCheck
       responses:
         '200':
           description: Service healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '503':
+          description: Service unhealthy (database unreachable)
           content:
             application/json:
               schema:
@@ -867,9 +888,15 @@ components:
           type: boolean
         checkWindowStart:
           type: string
+          description: Schedule on which the product is synced while autoDownload is on, as a five-field cron expression or a descriptor such as @daily.
+        nextRun:
+          type: string
+          format: date-time
+          description: Next scheduled sync; absent when autoDownload is off or no schedule is set.
         lastCheckedAt:
           type: string
           format: date-time
+          description: Time of the last sync.
         totalFiles:
           type: integer
         downloadedFiles:
@@ -943,11 +970,21 @@ components:
           type: boolean
         status:
           type: string
-          enum: [available, downloading, downloaded, failed, skipped, deleted, cancelled]
+          enum: [available, queued, downloading, retrying, downloaded, failed, skipped, deleted, cancelled]
+          description: queued and retrying are waiting in the download queue; failed means given up after the last attempt.
         localPath:
           type: string
         errorMessage:
           type: string
+        attempts:
+          type: integer
+          description: Download attempts made by the queue for the current request.
+        maxAttempts:
+          type: integer
+        nextAttemptAt:
+          type: string
+          format: date-time
+          description: When a retrying download is attempted next.
 
     FileWithHistory:
       allOf:
@@ -1147,6 +1184,31 @@ components:
           type: string
         uptime:
           type: string
+        database:
+          type: string
+          enum: [ok, unavailable]
+        scheduler:
+          type: string
+          enum: [running, disabled]
+          description: disabled when the process runs without the scheduler (CLI).
+        activeDownloads:
+          type: integer
+        queue:
+          $ref: '#/components/schemas/QueueCounts'
+
+    QueueCounts:
+      type: object
+      description: Download jobs per state.
+      required: [queued, running, retrying, failed]
+      properties:
+        queued:
+          type: integer
+        running:
+          type: integer
+        retrying:
+          type: integer
+        failed:
+          type: integer
 
     StatsResponse:
       type: object

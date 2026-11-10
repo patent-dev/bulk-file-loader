@@ -16,6 +16,7 @@ type Config struct {
 	DataDir         string
 	Port            int
 	MaxConcurrent   int
+	MaxAttempts     int
 	DownloadTimeout int
 	DevMode         bool
 	ViteProxy       string
@@ -36,11 +37,19 @@ func Load() (*Config, error) {
 		DataDir:         getEnvOrDefault("BULK_LOADER_DATA_DIR", "./data"),
 		Port:            getEnvIntOrDefault("BULK_LOADER_PORT", 8080),
 		MaxConcurrent:   getEnvIntOrDefault("BULK_LOADER_MAX_CONCURRENT", 3),
+		MaxAttempts:     getEnvIntOrDefault("BULK_LOADER_MAX_ATTEMPTS", 5),
 		DownloadTimeout: getEnvIntOrDefault("BULK_LOADER_DOWNLOAD_TIMEOUT", 3600),
 		DevMode:         os.Getenv("BULK_LOADER_DEV_MODE") == "true",
 		ViteProxy:       os.Getenv("BULK_LOADER_VITE_PROXY"),
 		TrustedProxies:  trusted,
 		InsecureCookie:  os.Getenv("BULK_LOADER_INSECURE_COOKIE") == "true",
+	}
+
+	if cfg.MaxConcurrent < 1 {
+		return nil, fmt.Errorf("BULK_LOADER_MAX_CONCURRENT must be at least 1, got %d", cfg.MaxConcurrent)
+	}
+	if cfg.MaxAttempts < 1 {
+		return nil, fmt.Errorf("BULK_LOADER_MAX_ATTEMPTS must be at least 1, got %d", cfg.MaxAttempts)
 	}
 
 	if err := os.MkdirAll(cfg.DataDir, 0755); err != nil {

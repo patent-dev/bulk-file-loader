@@ -3,6 +3,7 @@ package database
 import (
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/patent-dev/bulk-file-loader/config"
 	"github.com/patent-dev/bulk-file-loader/internal/database/dbtest"
@@ -250,5 +251,53 @@ func TestWebhookCRUD(t *testing.T) {
 	}
 	if retrieved.URL != "https://example.com/hook" {
 		t.Errorf("URL = %q, want https://example.com/hook", retrieved.URL)
+	}
+}
+
+func TestStartupCleanupSparesDownloadsOfLiveProcesses(t *testing.T) {
+	cfg := dbtest.Config(t)
+	db, err := New(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	must := func(err error) {
+		t.Helper()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	must(db.Create(&Source{ID: "s1", Name: "Source 1"}).Error)
+	must(db.Create(&Product{ID: "p1", SourceID: "s1", Name: "Product 1"}).Error)
+	must(db.Create(&Delivery{ID: "d1", ProductID: "p1", Name: "Delivery 1"}).Error)
+	now := time.Now().UTC()
+	held, expired := now.Add(time.Minute), now.Add(-time.Minute)
+	for _, f := range []struct {
+		id    string
+		lease *time.Time
+	}{{"live", &held}, {"dead", &expired}, {"orphan", nil}} {
+		must(db.Create(&File{ID: f.id, DeliveryID: "d1", ProductID: "p1", SourceID: "s1", FileName: f.id + ".zip"}).Error)
+		must(db.Create(&DownloadEntry{FileID: f.id, Status: DownloadStatusDownloading}).Error)
+		if f.lease != nil {
+			must(db.Create(&DownloadJob{FileID: f.id, State: JobRunning, ClaimedBy: "other:1",
+				LeaseUntil: f.lease, NextAttemptAt: now}).Error)
+		}
+	}
+
+	// A second process starting up (the CLI next to a running server).
+	reopened, err := New(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = reopened.Close() })
+
+	want := map[string]string{"live": DownloadStatusDownloading, "dead": DownloadStatusFailed, "orphan": DownloadStatusFailed}
+	for id, status := range want {
+		var entry DownloadEntry
+		must(reopened.Where("file_id = ?", id).First(&entry).Error)
+		if entry.Status != status {
+			t.Errorf("%s: status = %q, want %q", id, entry.Status, status)
+		}
 	}
 }

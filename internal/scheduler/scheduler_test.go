@@ -8,7 +8,6 @@ import (
 
 	"github.com/patent-dev/bulk-file-loader/internal/database"
 	"github.com/patent-dev/bulk-file-loader/internal/database/dbtest"
-	"github.com/patent-dev/bulk-file-loader/internal/hooks"
 )
 
 func setupTestDB(t *testing.T) *database.DB {
@@ -23,12 +22,11 @@ func setupTestDB(t *testing.T) *database.DB {
 
 func TestScheduleProduct(t *testing.T) {
 	db := setupTestDB(t)
-	hooksManager := hooks.New(db)
 
 	scheduler := &Scheduler{
 		db:       db,
-		hooks:    hooksManager,
 		entryIDs: make(map[string]cron.EntryID),
+		specs:    make(map[string]string),
 	}
 	scheduler.cron = cron.New()
 	scheduler.cron.Start()
@@ -53,12 +51,11 @@ func TestScheduleProduct(t *testing.T) {
 
 func TestScheduleProductEmptySchedule(t *testing.T) {
 	db := setupTestDB(t)
-	hooksManager := hooks.New(db)
 
 	scheduler := &Scheduler{
 		db:       db,
-		hooks:    hooksManager,
 		entryIDs: make(map[string]cron.EntryID),
+		specs:    make(map[string]string),
 	}
 	scheduler.cron = cron.New()
 	scheduler.cron.Start()
@@ -82,12 +79,11 @@ func TestScheduleProductEmptySchedule(t *testing.T) {
 
 func TestUnscheduleProduct(t *testing.T) {
 	db := setupTestDB(t)
-	hooksManager := hooks.New(db)
 
 	scheduler := &Scheduler{
 		db:       db,
-		hooks:    hooksManager,
 		entryIDs: make(map[string]cron.EntryID),
+		specs:    make(map[string]string),
 	}
 	scheduler.cron = cron.New()
 	scheduler.cron.Start()
@@ -110,12 +106,11 @@ func TestUnscheduleProduct(t *testing.T) {
 
 func TestGetNextRun(t *testing.T) {
 	db := setupTestDB(t)
-	hooksManager := hooks.New(db)
 
 	scheduler := &Scheduler{
 		db:       db,
-		hooks:    hooksManager,
 		entryIDs: make(map[string]cron.EntryID),
+		specs:    make(map[string]string),
 	}
 	scheduler.cron = cron.New()
 	scheduler.cron.Start()
@@ -139,12 +134,11 @@ func TestGetNextRun(t *testing.T) {
 
 func TestGetNextRunNotScheduled(t *testing.T) {
 	db := setupTestDB(t)
-	hooksManager := hooks.New(db)
 
 	scheduler := &Scheduler{
 		db:       db,
-		hooks:    hooksManager,
 		entryIDs: make(map[string]cron.EntryID),
+		specs:    make(map[string]string),
 	}
 	scheduler.cron = cron.New()
 
@@ -156,12 +150,11 @@ func TestGetNextRunNotScheduled(t *testing.T) {
 
 func TestScheduleInvalidCron(t *testing.T) {
 	db := setupTestDB(t)
-	hooksManager := hooks.New(db)
 
 	scheduler := &Scheduler{
 		db:       db,
-		hooks:    hooksManager,
 		entryIDs: make(map[string]cron.EntryID),
+		specs:    make(map[string]string),
 	}
 	scheduler.cron = cron.New()
 	scheduler.cron.Start()
@@ -181,12 +174,11 @@ func TestScheduleInvalidCron(t *testing.T) {
 
 func TestRescheduleProduct(t *testing.T) {
 	db := setupTestDB(t)
-	hooksManager := hooks.New(db)
 
 	scheduler := &Scheduler{
 		db:       db,
-		hooks:    hooksManager,
 		entryIDs: make(map[string]cron.EntryID),
+		specs:    make(map[string]string),
 	}
 	scheduler.cron = cron.New()
 	scheduler.cron.Start()
@@ -213,18 +205,46 @@ func TestRescheduleProduct(t *testing.T) {
 	}
 }
 
-func TestBuildDeliveryID(t *testing.T) {
-	id := buildDeliveryID("product-1", "delivery-external-123")
-	expected := "product-1:delivery-external-123"
-	if id != expected {
-		t.Errorf("buildDeliveryID() = %q, want %q", id, expected)
+func TestNextRun(t *testing.T) {
+	from := time.Date(2026, 11, 10, 6, 30, 0, 0, time.UTC)
+	next, err := NextRun("0 7 * * 1", from) // Mondays 07:00; 2026-11-10 is a Tuesday
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := time.Date(2026, 11, 16, 7, 0, 0, 0, time.UTC); !next.Equal(want) {
+		t.Errorf("NextRun = %v, want %v", next, want)
+	}
+	if _, err := NextRun("every monday", from); err == nil {
+		t.Error("an invalid expression must be rejected")
 	}
 }
 
-func TestBuildFileID(t *testing.T) {
-	id := buildFileID("product-1", "delivery-123", "file-456")
-	expected := "product-1:delivery-123:file-456"
-	if id != expected {
-		t.Errorf("buildFileID() = %q, want %q", id, expected)
+// TestReloadPicksUpChangesFromAnotherProcess changes schedules in the
+// database, as the CLI does, and checks Reload applies them.
+func TestReloadPicksUpChangesFromAnotherProcess(t *testing.T) {
+	db := setupTestDB(t)
+	s := New(db, func(string) {})
+	defer s.Stop()
+
+	db.Create(&database.Source{ID: "src", Name: "Source"})
+	if err := db.Create(&database.Product{ID: "p", SourceID: "src", Name: "P", AutoDownload: true, CheckWindowStart: "0 7 * * 1"}).Error; err != nil {
+		t.Fatal(err)
+	}
+	s.Reload()
+	first := s.GetNextRun("p")
+	if first == nil || first.Weekday() != time.Monday {
+		t.Fatalf("next run = %v, want a Monday after the schedule was added", first)
+	}
+
+	db.Model(&database.Product{}).Where("id = ?", "p").Update("check_window_start", "0 7 * * 3")
+	s.Reload()
+	if next := s.GetNextRun("p"); next == nil || next.Weekday() != time.Wednesday {
+		t.Errorf("next run = %v, want a Wednesday after the schedule changed", next)
+	}
+
+	db.Model(&database.Product{}).Where("id = ?", "p").Update("auto_download", false)
+	s.Reload()
+	if next := s.GetNextRun("p"); next != nil {
+		t.Errorf("next run = %v, want none after auto-download was switched off", next)
 	}
 }

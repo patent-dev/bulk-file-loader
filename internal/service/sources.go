@@ -8,7 +8,6 @@ import (
 	"github.com/patent-dev/bulk-file-loader/api/generated"
 	"github.com/patent-dev/bulk-file-loader/internal/database"
 	"github.com/patent-dev/bulk-file-loader/internal/sources"
-	"gorm.io/gorm/clause"
 )
 
 func (s *Service) ListSources() ([]generated.Source, error) {
@@ -59,20 +58,19 @@ func (s *Service) UpdateSource(ctx context.Context, id string, enabled *bool, cr
 		return generated.Source{}, err
 	}
 
+	// Enabling refreshes the product list (one request). The file catalogue
+	// can take minutes: the server syncs it in the background, the CLI only
+	// on request (product sync, pull, source enable --sync).
 	if enabledVal {
 		if err := s.SyncSourceProducts(id); err != nil {
 			slog.Error("Failed to sync products on enable", "source", id, "error", err)
 		}
 		if s.Scheduler != nil {
-			go func() {
-				if err := s.SyncSourceFiles(id); err != nil {
+			s.goBackground(func(ctx context.Context) {
+				if err := s.SyncSourceFiles(ctx, id, nil); err != nil {
 					slog.Error("Failed to sync files on enable", "source", id, "error", err)
 				}
-			}()
-		} else {
-			if err := s.SyncSourceFiles(id); err != nil {
-				slog.Error("Failed to sync files on enable", "source", id, "error", err)
-			}
+			})
 		}
 	}
 
@@ -81,6 +79,11 @@ func (s *Service) UpdateSource(ctx context.Context, id string, enabled *bool, cr
 
 func (s *Service) TestCredentials(ctx context.Context, id string, credentials map[string]string) error {
 	return s.Registry.TestCredentials(ctx, id, credentials)
+}
+
+// TestStoredCredentials validates the credentials stored for a source.
+func (s *Service) TestStoredCredentials(ctx context.Context, id string) error {
+	return s.Registry.TestStoredCredentials(ctx, id)
 }
 
 func (s *Service) SyncSourceProducts(sourceID string) error {
@@ -126,90 +129,6 @@ func (s *Service) SyncSourceProducts(sourceID string) error {
 		}
 	}
 	return nil
-}
-
-func (s *Service) SyncSourceFiles(sourceID string) error {
-	ctx := context.Background()
-	slog.Info("Syncing files", "source", sourceID)
-
-	adapter, ok := s.Registry.Get(sourceID)
-	if !ok {
-		return fmt.Errorf("adapter not found for source: %s", sourceID)
-	}
-
-	var products []database.Product
-	if err := s.DB.Where("source_id = ?", sourceID).Find(&products).Error; err != nil {
-		return fmt.Errorf("failed to get products for source %s: %w", sourceID, err)
-	}
-
-	for _, p := range products {
-		s.syncProductDeliveriesAndFiles(ctx, adapter, sourceID, p.ID, p.ExternalID)
-	}
-	slog.Info("File sync completed", "source", sourceID)
-	return nil
-}
-
-func (s *Service) syncProductDeliveriesAndFiles(ctx context.Context, adapter sources.Adapter, sourceID, productID, externalProductID string) {
-	deliveries, err := adapter.FetchDeliveries(ctx, externalProductID)
-	if err != nil {
-		slog.Error("Failed to fetch deliveries", "product", productID, "error", err)
-		return
-	}
-
-	totalFiles := 0
-	for _, d := range deliveries {
-		deliveryID := fmt.Sprintf("%s:%s", productID, d.ExternalID)
-		delivery := database.Delivery{
-			ID:          deliveryID,
-			ProductID:   productID,
-			ExternalID:  d.ExternalID,
-			Name:        d.Name,
-			PublishedAt: database.OptionalTime(d.PublishedAt),
-			ExpiresAt:   d.ExpiresAt,
-		}
-		if err := s.DB.Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "id"}},
-			DoUpdates: clause.AssignmentColumns([]string{"name", "published_at", "expires_at"}),
-		}).Create(&delivery).Error; err != nil {
-			slog.Error("Failed to save delivery", "deliveryID", deliveryID, "error", err)
-			continue
-		}
-
-		files, err := adapter.FetchFiles(ctx, externalProductID, d.ExternalID)
-		if err != nil {
-			slog.Error("Failed to fetch files", "deliveryID", deliveryID, "error", err)
-			continue
-		}
-
-		for _, f := range files {
-			fileID := fmt.Sprintf("%s:%s", deliveryID, f.ExternalID)
-			file := database.File{
-				ID:                fileID,
-				DeliveryID:        deliveryID,
-				ProductID:         productID,
-				SourceID:          sourceID,
-				ExternalID:        f.ExternalID,
-				FileName:          f.FileName,
-				FileSize:          f.FileSize,
-				ExpectedChecksum:  f.Checksum,
-				ChecksumAlgorithm: f.ChecksumAlgorithm,
-				DownloadURI:       f.DownloadURI,
-				ReleasedAt:        database.OptionalTime(f.ReleasedAt),
-			}
-			if err := s.DB.Clauses(clause.OnConflict{
-				Columns: []clause.Column{{Name: "id"}},
-				DoUpdates: clause.AssignmentColumns([]string{
-					"file_name", "file_size", "expected_checksum", "checksum_algorithm",
-					"download_uri", "released_at", "updated_at",
-				}),
-			}).Create(&file).Error; err != nil {
-				slog.Error("Failed to save file", "fileID", fileID, "error", err)
-				continue
-			}
-			totalFiles++
-		}
-	}
-	slog.Debug("Synced files", "product", productID, "count", totalFiles)
 }
 
 func convertSourceInfo(si sources.SourceInfo) generated.Source {

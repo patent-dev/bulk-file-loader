@@ -89,6 +89,10 @@ func (a *Adapter) Configure(cfg sources.AdapterConfig) {
 	a.client = nil
 }
 
+// NewInstance returns an independent, unconfigured adapter of the same kind,
+// used to test credentials without touching this one.
+func (a *Adapter) NewInstance() sources.Adapter { return New() }
+
 func (a *Adapter) SetCredentials(creds map[string]string) {
 	a.credentials = creds
 	a.client = nil
