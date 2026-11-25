@@ -22,6 +22,7 @@ type Product struct {
 	CheckWindowStart string
 	CheckWindowEnd   string
 	LastCheckedAt    *time.Time
+	LastSyncError    string
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 

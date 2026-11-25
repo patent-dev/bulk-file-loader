@@ -23,7 +23,10 @@ interface Product {
   name: string
   description?: string
   autoDownload: boolean
+  syncing?: boolean
   checkWindowStart?: string
+  lastCheckedAt?: string
+  lastSyncError?: string
   totalFiles?: number
   downloadedFiles?: number
   failedFiles?: number
@@ -103,6 +106,10 @@ const productSearch = ref('')
 const productFilter = ref<'all' | 'enabled'>('all')
 
 // Check if selected source is enabled
+const selectedProduct = computed(() =>
+  products.value.find(p => p.id === selectedProductId.value)
+)
+
 const selectedSourceEnabled = computed(() => {
   if (!selectedSourceId.value) return false
   const source = sources.value.find(s => s.id === selectedSourceId.value)
@@ -194,6 +201,7 @@ async function fetchProducts() {
           const updated = newMap.get(product.id)
           if (updated) {
             Object.assign(product, updated)
+            applySyncState(product, updated)
           }
         }
       } else {
@@ -239,6 +247,14 @@ async function fetchStats() {
   }
 }
 
+// The API omits lastCheckedAt and lastSyncError when unset, so they are
+// copied explicitly: a merge alone would keep a cleared error.
+function applySyncState(product: Product, updated: Product) {
+  product.syncing = updated.syncing
+  product.lastCheckedAt = updated.lastCheckedAt
+  product.lastSyncError = updated.lastSyncError
+}
+
 // Update product counts in-place without replacing the array (avoids flicker)
 async function refreshProductCounts() {
   if (!selectedSourceId.value || products.value.length === 0) return
@@ -258,6 +274,7 @@ async function refreshProductCounts() {
           if (product.totalFiles !== updated.totalFiles) product.totalFiles = updated.totalFiles
           if (product.downloadedFiles !== updated.downloadedFiles) product.downloadedFiles = updated.downloadedFiles
           if (product.failedFiles !== updated.failedFiles) product.failedFiles = updated.failedFiles
+          applySyncState(product, updated)
         }
       }
     }
@@ -684,7 +701,13 @@ onUnmounted(() => {
           <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-600 text-white text-sm mr-2">3</span>
           Files
         </h2>
-        <FileList :product-id="selectedProductId" @files-changed="handleFilesChanged" />
+        <FileList
+          :product-id="selectedProductId"
+          :syncing="selectedProduct?.syncing"
+          :last-checked-at="selectedProduct?.lastCheckedAt"
+          :sync-error="selectedProduct?.lastSyncError"
+          @files-changed="handleFilesChanged"
+        />
       </section>
 
       <!-- Placeholder when no product selected -->

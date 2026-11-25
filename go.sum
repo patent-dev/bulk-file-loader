@@ -53,8 +53,8 @@ github.com/patent-dev/dpma-connect-plus v0.3.8 h1:cH99GbSHnMkOiIbNQtlhqPPb9M9YUW
 github.com/patent-dev/dpma-connect-plus v0.3.8/go.mod h1:VU7FZL+7SJUoTfK7RDDkMAop/1W7xDSpgLiIjZ5yckY=
 github.com/patent-dev/epo-bdds v0.2.5 h1:e3J/Aq3dTU6qG8a6ja8PaQ008i9DuZK3Slvj3Qw10IY=
 github.com/patent-dev/epo-bdds v0.2.5/go.mod h1:QO91IagmJ/DmegbdKfSi+2NCqbIAUlV2kXJmXtUkXsk=
-github.com/patent-dev/uspto-odp v1.6.12 h1:SGfPfh4vrHNyNWxns05N/lGz9Knf02Xl8DLbQ1JtUBw=
-github.com/patent-dev/uspto-odp v1.6.12/go.mod h1:4Z5jUXK077yyGk2B7qCafAuz/T/Yg5cqbanNa8Sr0b8=
+github.com/patent-dev/uspto-odp v1.8.1 h1:eY5RuPlW69iv87+8Byp3pbHBL6Sq0dpSEK2q5D5aGuo=
+github.com/patent-dev/uspto-odp v1.8.1/go.mod h1:4Z5jUXK077yyGk2B7qCafAuz/T/Yg5cqbanNa8Sr0b8=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/robfig/cron/v3 v3.0.1 h1:WdRxkvbJztn8LMz/QEvLN5sBU+xKpSqwwUO1Pjr4qDs=

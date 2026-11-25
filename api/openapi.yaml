@@ -873,6 +873,7 @@ components:
         - sourceId
         - name
         - autoDownload
+        - syncing
       properties:
         id:
           type: string
@@ -886,6 +887,9 @@ components:
           type: string
         autoDownload:
           type: boolean
+        syncing:
+          type: boolean
+          description: Whether a file list sync of the product is running or waiting its turn in the server answering the request. Always false in CLI output, which does not see a running server's syncs.
         checkWindowStart:
           type: string
           description: Schedule on which the product is synced while autoDownload is on, as a five-field cron expression or a descriptor such as @daily.
@@ -896,7 +900,10 @@ components:
         lastCheckedAt:
           type: string
           format: date-time
-          description: Time of the last sync.
+          description: Time of the last sync, whether it succeeded or failed.
+        lastSyncError:
+          type: string
+          description: Why the last sync failed, as the first line of the error; absent when it succeeded or the product was never synced.
         totalFiles:
           type: integer
         downloadedFiles:

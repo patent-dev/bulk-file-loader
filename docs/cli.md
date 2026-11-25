@@ -114,7 +114,7 @@ bulk-file-loader product enable <id> [--schedule "0 6 * * *"]
 bulk-file-loader product disable <id>
 ```
 
-`sync` fetches the latest file list from the remote API and prints one line per product on stderr; a delivery whose file list cannot be fetched is reported and makes the command exit with code 3. `enable`/`disable` control auto-download; the schedule is a five-field cron expression or a descriptor such as `@daily`, validated before it is stored. `enable` prints the stored schedule and the next run. Scheduled syncs run in `serve` mode; a running server picks up a schedule changed with the CLI within 30 seconds. Enabling auto-download queues the product's pending files. `show` (and `ls --format json`) report the schedule, next run and last run.
+`sync` fetches the latest file list from the remote API and prints one line per product on stderr; a delivery whose file list cannot be fetched is reported and makes the command exit with code 3. `enable`/`disable` control auto-download; the schedule is a five-field cron expression or a descriptor such as `@daily`, validated before it is stored. `enable` prints the stored schedule and the next run. Scheduled syncs run in `serve` mode; a running server picks up a schedule changed with the CLI within 30 seconds. Enabling auto-download queues the product's pending files. `show` (and `ls --format json`) report the schedule, next run, last run and, when the last sync failed, its error.
 
 ### Files
 

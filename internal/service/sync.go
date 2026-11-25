@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/patent-dev/bulk-file-loader/internal/database"
@@ -50,6 +52,8 @@ func (s *Service) syncProduct(ctx context.Context, productID string, events bool
 			s.Hooks.Emit(ctx, e)
 		}
 	}
+	defer s.markSyncing(productID)()
+
 	var product database.Product
 	if err := s.DB.First(&product, "id = ?", productID).Error; err != nil {
 		return SyncResult{}, fmt.Errorf("%w: product %s", ErrNotFound, productID)
@@ -62,6 +66,7 @@ func (s *Service) syncProduct(ctx context.Context, productID string, events bool
 	deliveries, err := adapter.FetchDeliveries(ctx, product.ExternalID)
 	if err != nil {
 		err = fmt.Errorf("fetch deliveries for %s: %w", productID, err)
+		s.recordSyncOutcome(ctx, productID, err)
 		emit(syncFailedEvent(product, err))
 		return SyncResult{}, err
 	}
@@ -133,19 +138,14 @@ func (s *Service) syncProduct(ctx context.Context, productID string, events bool
 		}
 	}
 
-	// Only the timestamp: a full save would overwrite schedule changes made
-	// while the sync ran.
-	if err := s.DB.Model(&database.Product{}).Where("id = ?", productID).
-		Update("last_checked_at", time.Now()).Error; err != nil {
-		slog.Error("Failed to record sync time", "productID", productID, "error", err)
-	}
-
 	if len(listErrs) > 0 {
 		err := fmt.Errorf("%s: %d of %d deliveries incomplete: %w",
 			productID, len(listErrs), len(deliveries), errors.Join(listErrs...))
+		s.recordSyncOutcome(ctx, productID, err)
 		emit(syncFailedEvent(product, err))
 		return res, err
 	}
+	s.recordSyncOutcome(ctx, productID, nil)
 	emit(hooks.NewEvent(hooks.EventSyncCompleted, product.SourceID).WithProduct(productID, product.Name))
 	slog.Info("Sync completed", "productID", productID, "files", res.Files, "newFiles", len(res.NewFileIDs))
 	return res, nil
@@ -169,12 +169,25 @@ func (s *Service) SyncSourceFiles(ctx context.Context, sourceID string, progress
 		return fmt.Errorf("failed to get products for source %s: %w", sourceID, err)
 	}
 
+	// Products wait their turn: mark them all, so the ones not reached yet
+	// already report a sync in progress.
+	waiting := make([]func(), len(products))
+	for i, p := range products {
+		waiting[i] = s.markSyncing(p.ID)
+	}
+	defer func() {
+		for _, done := range waiting {
+			done()
+		}
+	}()
+
 	var errs []error
-	for _, p := range products {
+	for i, p := range products {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
 		res, err := s.SyncProduct(ctx, p.ID)
+		waiting[i]()
 		if err != nil {
 			errs = append(errs, err)
 		}
@@ -187,6 +200,51 @@ func (s *Service) SyncSourceFiles(ctx context.Context, sourceID string, progress
 		}
 	}
 	return errors.Join(errs...)
+}
+
+// markSyncing reports the product as syncing until the returned function is
+// called; calling it again is a no-op.
+func (s *Service) markSyncing(productID string) func() {
+	s.syncingMu.Lock()
+	if s.syncing == nil {
+		s.syncing = make(map[string]int)
+	}
+	s.syncing[productID]++
+	s.syncingMu.Unlock()
+
+	return sync.OnceFunc(func() {
+		s.syncingMu.Lock()
+		defer s.syncingMu.Unlock()
+		if s.syncing[productID]--; s.syncing[productID] <= 0 {
+			delete(s.syncing, productID)
+		}
+	})
+}
+
+func (s *Service) isSyncing(productID string) bool {
+	s.syncingMu.Lock()
+	defer s.syncingMu.Unlock()
+	return s.syncing[productID] > 0
+}
+
+// recordSyncOutcome stores when the sync ran and why it failed, clearing the
+// error on success. Only these columns: a full save would overwrite schedule
+// changes made while the sync ran. A sync cut short by cancellation (shutdown)
+// keeps the error of the last sync that ran. Of a failure that joins several
+// errors only the first line is kept: it carries the summary, and the text is
+// part of every product listing.
+func (s *Service) recordSyncOutcome(ctx context.Context, productID string, syncErr error) {
+	fields := map[string]any{"last_checked_at": time.Now(), "last_sync_error": ""}
+	if syncErr != nil {
+		if ctx.Err() != nil {
+			return
+		}
+		fields["last_sync_error"], _, _ = strings.Cut(syncErr.Error(), "\n")
+	}
+	if err := s.DB.Model(&database.Product{}).Where("id = ?", productID).
+		Updates(fields).Error; err != nil {
+		slog.Error("Failed to record sync outcome", "productID", productID, "error", err)
+	}
 }
 
 // SyncProductFull refreshes the source's product list and then one product.

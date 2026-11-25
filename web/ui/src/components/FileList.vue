@@ -22,6 +22,9 @@ interface File {
 
 const props = defineProps<{
   productId: string | null
+  syncing?: boolean
+  lastCheckedAt?: string
+  syncError?: string
 }>()
 
 const emit = defineEmits<{
@@ -185,10 +188,53 @@ function getStatusBadgeClass(status: string): string {
   return classes[status] || 'bg-gray-100 text-gray-800'
 }
 
-watch(() => props.productId, () => {
-  offset.value = 0
-  fetchFiles()
+// One watcher for both: switching products changes them together and must
+// load the list once. A new lastCheckedAt alone means a sync finished and may
+// have changed the list.
+watch([() => props.productId, () => props.lastCheckedAt], ([productId], [previousProductId]) => {
+  clearSyncRequested()
+  if (productId !== previousProductId) {
+    offset.value = 0
+    fetchFiles()
+  } else {
+    fetchFiles(false)
+  }
 })
+
+// A sync requested here counts as running until its outcome arrives: the
+// server only reports it once the background sync has started. A request the
+// server accepted but never ran (it was shutting down) is given up after a
+// while, so the list does not spin forever.
+const syncRequested = ref(false)
+const syncRunning = computed(() => props.syncing || syncRequested.value)
+let syncRequestTimeout: number | null = null
+
+function clearSyncRequested() {
+  syncRequested.value = false
+  if (syncRequestTimeout) clearTimeout(syncRequestTimeout)
+  syncRequestTimeout = null
+}
+
+async function syncNow() {
+  if (!props.productId) return
+  clearSyncRequested()
+  syncRequested.value = true
+  syncRequestTimeout = window.setTimeout(clearSyncRequested, 30000)
+  try {
+    const response = await fetch(`/api/products/${encodeURIComponent(props.productId)}/sync`, {
+      method: 'POST',
+      credentials: 'include',
+    })
+    if (!response.ok) clearSyncRequested()
+    emit('files-changed')
+  } catch (error) {
+    clearSyncRequested()
+    console.error('Failed to start sync:', error)
+  }
+}
+
+// The server reporting the sync takes over from the local flag.
+watch(() => props.syncing, clearSyncRequested)
 
 watch(statusFilter, () => {
   offset.value = 0
@@ -222,6 +268,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   if (fallbackInterval) clearInterval(fallbackInterval)
+  clearSyncRequested()
 })
 </script>
 
@@ -256,6 +303,17 @@ onUnmounted(() => {
       </button>
     </div>
 
+    <div v-if="syncError" class="px-4 py-3 border-b bg-red-50 text-sm text-red-700 break-words">
+      <span class="font-medium">Last sync failed:</span> {{ syncError }}
+      <button
+        v-if="productId && !syncRunning"
+        @click="syncNow"
+        class="ml-2 underline hover:text-red-900"
+      >
+        Retry
+      </button>
+    </div>
+
     <!-- File Table -->
     <div class="overflow-x-auto">
       <table class="w-full">
@@ -273,7 +331,16 @@ onUnmounted(() => {
             <td colspan="5" class="px-4 py-8 text-gray-500">Loading...</td>
           </tr>
           <tr v-else-if="files.length === 0" class="text-center">
-            <td colspan="5" class="px-4 py-8 text-gray-500">
+            <td v-if="statusFilter || (!syncRunning && (lastCheckedAt || syncError))" colspan="5" class="px-4 py-8 text-gray-500">
+              No files
+            </td>
+            <td v-else-if="!syncRunning" colspan="5" class="px-4 py-8 text-gray-500">
+              Not synced yet.
+              <button v-if="productId" @click="syncNow" class="text-blue-600 hover:text-blue-800 underline">
+                Sync now
+              </button>
+            </td>
+            <td v-else colspan="5" class="px-4 py-8 text-gray-500">
               <div class="flex items-center justify-center gap-2">
                 <svg class="animate-spin h-4 w-4 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                   <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>

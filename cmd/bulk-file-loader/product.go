@@ -114,6 +114,7 @@ var productShowCmd = &cobra.Command{
 			{"Schedule", deref(product.CheckWindowStart, "")},
 			{"Next Run", nextRunText(product.AutoDownload, product.CheckWindowStart, product.NextRun)},
 			{"Last Run", lastChecked},
+			{"Last Sync Error", deref(product.LastSyncError, "")},
 			{"Total Files", fmt.Sprintf("%d", deref(product.TotalFiles, 0))},
 			{"Downloaded", fmt.Sprintf("%d", deref(product.DownloadedFiles, 0))},
 			{"Failed", fmt.Sprintf("%d", deref(product.FailedFiles, 0))},

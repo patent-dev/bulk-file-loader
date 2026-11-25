@@ -38,7 +38,7 @@ func (s *Service) ListProducts(sourceID *string) ([]generated.Product, error) {
 
 	result := make([]generated.Product, 0, len(products))
 	for _, p := range products {
-		product := convertProduct(p)
+		product := s.convertProduct(p)
 		c := counts[p.ID]
 		tf := int(c.TotalFiles)
 		df := int(c.DownloadedFiles)
@@ -120,7 +120,7 @@ func (s *Service) GetProduct(id string) (generated.ProductWithDeliveries, error)
 		return generated.ProductWithDeliveries{}, fmt.Errorf("%w: product %s", ErrNotFound, id)
 	}
 
-	p := convertProduct(product)
+	p := s.convertProduct(product)
 	result := generated.ProductWithDeliveries{
 		Id:               p.Id,
 		SourceId:         p.SourceId,
@@ -131,6 +131,8 @@ func (s *Service) GetProduct(id string) (generated.ProductWithDeliveries, error)
 		CheckWindowStart: p.CheckWindowStart,
 		NextRun:          p.NextRun,
 		LastCheckedAt:    p.LastCheckedAt,
+		LastSyncError:    p.LastSyncError,
+		Syncing:          p.Syncing,
 		TotalFiles:       p.TotalFiles,
 		DownloadedFiles:  p.DownloadedFiles,
 		FailedFiles:      p.FailedFiles,
@@ -301,12 +303,13 @@ func (s *Service) pendingFileIDs(productID string) ([]string, error) {
 	return ids, err
 }
 
-func convertProduct(p database.Product) generated.Product {
+func (s *Service) convertProduct(p database.Product) generated.Product {
 	result := generated.Product{
 		Id:           p.ID,
 		SourceId:     p.SourceID,
 		Name:         p.Name,
 		AutoDownload: p.AutoDownload,
+		Syncing:      s.isSyncing(p.ID),
 	}
 	if p.ExternalID != "" {
 		result.ExternalId = &p.ExternalID
@@ -320,6 +323,9 @@ func convertProduct(p database.Product) generated.Product {
 	result.NextRun = nextRun(p)
 	if p.LastCheckedAt != nil {
 		result.LastCheckedAt = p.LastCheckedAt
+	}
+	if p.LastSyncError != "" {
+		result.LastSyncError = &p.LastSyncError
 	}
 	return result
 }

@@ -37,6 +37,11 @@ type Service struct {
 	background   sync.WaitGroup
 	backgroundMu sync.Mutex
 	stopping     bool
+
+	// syncing counts, per product, the file list syncs running or waiting
+	// their turn in this process.
+	syncingMu sync.Mutex
+	syncing   map[string]int
 }
 
 func New(

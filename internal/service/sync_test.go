@@ -25,10 +25,14 @@ type catalogueAdapter struct {
 	deliveries   []sources.DeliveryInfo
 	files        map[string][]sources.FileInfo
 	failDelivery string
+	failProduct  error
 	onFetchFiles func()
 }
 
 func (a *catalogueAdapter) FetchDeliveries(context.Context, string) ([]sources.DeliveryInfo, error) {
+	if a.failProduct != nil {
+		return nil, a.failProduct
+	}
 	return a.deliveries, nil
 }
 
@@ -123,6 +127,17 @@ func TestSyncProductReportsIncompleteDelivery(t *testing.T) {
 	}
 	if res.Files != 3 {
 		t.Errorf("files = %d, want the 3 files of the complete delivery saved", res.Files)
+	}
+	p, err := svc.GetProduct(productID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := productID + ": 1 of 2 deliveries incomplete: delivery listing-outage: listing unavailable"
+	if p.LastSyncError == nil || *p.LastSyncError != want {
+		t.Errorf("lastSyncError = %v, want %q", p.LastSyncError, want)
+	}
+	if p.LastCheckedAt == nil {
+		t.Error("incomplete sync did not record its run time")
 	}
 }
 
@@ -327,5 +342,60 @@ func TestFileStatusesBeyondOneQueryChunk(t *testing.T) {
 	}
 	if res.Total != 1 || res.Files[0].Id != scheme {
 		t.Errorf("downloaded = %d files, want only %s", res.Total, scheme)
+	}
+}
+
+// The failure is the one an operator reported for the USPTO file wrapper
+// products: the product response did not decode, so no delivery was listed.
+func TestSyncProductRecordsAndClearsSyncError(t *testing.T) {
+	svc := setupTestService(t)
+	a := cpcCatalogue()
+	// The value is the fileDate the USPTO returned; the client decoded it as a
+	// plain date.
+	_, parseErr := time.Parse(time.DateOnly, "2026-11-22 00:00:00")
+	a.failProduct = sources.NewAdapterError(sources.ErrCodeNetwork, "Failed to fetch product", parseErr)
+	productID := seedCatalogueProduct(t, svc, a)
+
+	if _, err := svc.SyncProduct(context.Background(), productID); err == nil {
+		t.Fatal("sync succeeded, want the product fetch failure")
+	}
+	p, err := svc.GetProduct(productID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "fetch deliveries for " + productID + `: Failed to fetch product: parsing time "2026-11-22 00:00:00": extra text: " 00:00:00"`
+	if p.LastSyncError == nil || *p.LastSyncError != want {
+		t.Fatalf("lastSyncError = %v, want %q", p.LastSyncError, want)
+	}
+	if p.Syncing {
+		t.Error("product still reported as syncing after the sync returned")
+	}
+	if p.LastCheckedAt == nil {
+		t.Error("failed sync did not record its run time")
+	}
+
+	// A cancelled sync says nothing about the product and keeps the error.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	a.failProduct = ctx.Err()
+	_, _ = svc.SyncProduct(ctx, productID)
+	if p, _ = svc.GetProduct(productID); p.LastSyncError == nil || !strings.Contains(*p.LastSyncError, "parsing time") {
+		t.Fatalf("lastSyncError after cancelled sync = %v, want it kept", p.LastSyncError)
+	}
+
+	a.failProduct = nil
+	var syncingDuringSync bool
+	a.onFetchFiles = func() {
+		running, _ := svc.GetProduct(productID)
+		syncingDuringSync = running.Syncing
+	}
+	if _, err := svc.SyncProduct(context.Background(), productID); err != nil {
+		t.Fatal(err)
+	}
+	if !syncingDuringSync {
+		t.Error("product not reported as syncing while its files were listed")
+	}
+	if p, _ = svc.GetProduct(productID); p.LastSyncError != nil || p.Syncing {
+		t.Errorf("after a successful sync lastSyncError = %v, syncing = %v, want none", p.LastSyncError, p.Syncing)
 	}
 }
