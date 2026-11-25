@@ -15,7 +15,7 @@ RUN apk add --no-cache git
 WORKDIR /app
 
 # Install oapi-codegen
-RUN go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.8.2
+RUN go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.9.0
 
 # Copy go mod files
 COPY go.mod go.sum ./
